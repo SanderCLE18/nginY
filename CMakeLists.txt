@@ -13,6 +13,10 @@ set(SOURCES
         src/WebServer.cpp
         src/FileHandler.cpp
         src/FileHandler.h
+        src/ProxyHandler.cpp
+        src/ProxyHandler.h
+        src/ConfigHandler.cpp
+        src/ConfigHandler.h
 )
 
 # Executable
