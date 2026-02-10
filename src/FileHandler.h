@@ -9,6 +9,7 @@ class FileHandler
 {
 private:
     static std::string getFileType(std::string path);
+    static std::tuple<std::string, std::string> parseProxy(std::string value);
 
 public:
     struct Response {
@@ -16,12 +17,21 @@ public:
         std::vector<char> content;
         bool found;
     };
+    //Proxy rules!
+    struct ProxyRules {
+        std::string location;
+        std::string host;
+        std::string port;
+        bool proxy;
+    };
+
     struct Config {
-        std::string path;
-        std::vector<std::string> content;
+        std::vector<FileHandler::ProxyRules> content;
+        int portListen;
         bool found;
     };
-    static Config parseConfig(std::string path);
+
+    static Config parseConfig(const std::string& path);
     FileHandler();
     ~FileHandler();
     static Response getSite(std::string path);

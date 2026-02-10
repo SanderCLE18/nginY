@@ -15,8 +15,7 @@ set(SOURCES
         src/FileHandler.h
         src/ProxyHandler.cpp
         src/ProxyHandler.h
-        src/ConfigHandler.cpp
-        src/ConfigHandler.h
+        src/configEnum.cpp
 )
 
 # Executable
