@@ -34,6 +34,6 @@ public:
     static Config parseConfig(const std::string& path);
     FileHandler();
     ~FileHandler();
-    static Response getSite(std::string path);
+    static Response getSite(const std::string &path);
     static std::string getUrlPath(std::string path);
 };

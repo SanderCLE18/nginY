@@ -7,15 +7,14 @@
 #include <filesystem>
 #include <sstream>
 
-FileHandler::FileHandler() {}
+FileHandler::FileHandler() = default;
 
-FileHandler::~FileHandler() {
+FileHandler::~FileHandler() = default;
 
-}
-FileHandler::Response FileHandler::getSite(const std::string url) {
+FileHandler::Response FileHandler::getSite(const std::string &path) {
     Response response;
 
-    std::ifstream file(url, std::ios::binary | std::ios::ate);
+    std::ifstream file(path, std::ios::binary | std::ios::ate);
 
     if (!file.is_open()) {
         response.found = false;
@@ -30,7 +29,7 @@ FileHandler::Response FileHandler::getSite(const std::string url) {
 
     response.found = true;
 
-    std::string filetype = getFileType(url);
+    std::string filetype = getFileType(path);
     response.header = "HTTP/1.1 200 OK\r\n";
     response.header += "Content-Type: " + filetype + "\r\n";
     response.header += "Content-Length: " + std::to_string(size) + "\r\n";
@@ -110,14 +109,14 @@ std::tuple<std::string, std::string> FileHandler::parseProxy(const std::string v
     if (start != std::string::npos) {
         target = target.substr(start+3);
     }
-    size_t end = target.find(":");
+    size_t end = target.find(':');
     if (end != std::string::npos) {
         host = target.substr(0, end);
         port = target.substr(end+1);
     }
     else {
         //magic number
-        port = 80;
+        port = "80";
         host = target;
     }
     return std::make_tuple(host, port);

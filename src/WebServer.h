@@ -17,18 +17,18 @@ private:
     int result;
     int ListenSocket;
     int ClientSocket;
-    struct addrinfo* addrinfo_;
+    struct addrinfo* addrResult;
     struct addrinfo hints;
 
     int sendResult;
     std::atomic<bool> isRunning;
 
-    void cleanupServer();
+    void cleanupServer() const;
     void resolveServer();
     void createListenSocket();
     int createClientSocket();
     int createBackendConnection();
-    void createClientThread();
+    void createClientThread(int client);
     void consoleInput();
 
 
