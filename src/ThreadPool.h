@@ -23,7 +23,7 @@ public:
     ~ThreadPool();
 
     template <class F, class... Args>
-    auto submit(F&& f, Args&& args) -> std::future<typename std::result_of<F(Args...)>::type>;
+    auto submit(F&& f, Args&& ...args) -> std::future<typename std::result_of<F(Args...)>::type>;
 };
 
 inline ThreadPool::ThreadPool(size_t num_threads) : running(false)
@@ -40,7 +40,7 @@ inline ThreadPool::ThreadPool(size_t num_threads) : running(false)
                     this->condition.wait(lock, [this]() { return this->running || !this->tasks.empty(); });
                     if (this->running && this->tasks.empty()) return;
                     task = std::move(this->tasks.front());
-                    this->tasks.pop_front();
+                    this->tasks.erase(this->tasks.begin());
                 }
                 task();
             }
@@ -62,6 +62,7 @@ inline ThreadPool::~ThreadPool()
 
 template <class F, class... Args>
 auto ThreadPool::submit(F&& f, Args&& ...args)
+    -> std::future<typename std::result_of<F(Args...)>::type>
 {
     using return_type = typename std::result_of<F(Args...)>::type;
     auto task = std::make_shared<std::packaged_task<return_type()> >(
