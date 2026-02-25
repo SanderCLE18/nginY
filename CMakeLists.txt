@@ -15,8 +15,6 @@ set(SOURCES
         src/FileHandler.h
         src/ProxyHandler.cpp
         src/ProxyHandler.h
-        src/configEnum.cpp
-        src/ThreadPool.cpp
         src/ThreadPool.h
 )
 

@@ -3,6 +3,7 @@
 //
 #include "WebServer.h"
 #include "FileHandler.h"
+#include "ThreadPool.h"
 #include <string>
 #include <sys/socket.h>
 #include <sys/types.h>
@@ -71,7 +72,7 @@ void WebServer::createListenSocket() {
 		std::printf("Error listening: %d\n", errno);
 		cleanupServer();
 	}
-	unsigned long mode = 1; x
+	unsigned long mode = 1;
 	ioctl(ListenSocket, FIONBIO, &mode);
 
 }
@@ -84,7 +85,7 @@ int WebServer::createClientSocket() {
 	}
 	return Client;
 }
-//console function so program doesnt need to crash to exit - breaks cohesion
+//console function so program doesnt need to crash to exit
 void WebServer::consoleInput() {
 	std::string input;
 	while (input != "exit"){
@@ -141,16 +142,12 @@ void WebServer::startListen() {
 	isRunning = true;
 	std::thread t(&WebServer::consoleInput, this);
 
-	std::vector<std::thread> threads;
-	for (int i = 0; i < 8; i++) {
-		threads.push_back(std::thread(&WebServer::consoleInput, this));
-	}
+	ThreadPool pool(8);
 
 	do {
 		ClientSocket = WebServer::createClientSocket();
 		if (ClientSocket != -1) {
-			std::thread newclient(&WebServer::createClientThread, this, ClientSocket);
-			newclient.detach();
+			pool.submit(ClientSocket)
 		}else {
 			int error = errno;
 			if (error != EWOULDBLOCK) {
