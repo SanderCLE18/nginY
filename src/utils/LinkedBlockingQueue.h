@@ -16,9 +16,9 @@ private:
             Node *next;
             E item;
         public:
-            Node(E *item) : item(item) {
-                next = nullptr;
-            }
+            Node() : next(nullptr) {}
+
+            Node(const E &item) : item(item), next(nullptr) {}
 
             ~Node() = default;
 
@@ -27,9 +27,9 @@ private:
             }
 
             void setNext(Node *nextOne) {
-                next = *nextOne;
+                next = nextOne;
             }
-            Node getNext() {
+            Node* getNext() {
                 return next;
             }
             E getItem() {
@@ -42,8 +42,8 @@ private:
     std::atomic<int> queue_size;
     int max_queue_size;
 
-    std::unique_lock<std::mutex> lockOne;
-    std::unique_lock<std::mutex> lockTwo;
+    std::mutex mutexOne;
+    std::mutex mutexTwo;
 
     std::condition_variable cond1;
     std::condition_variable cond2;
@@ -51,14 +51,14 @@ private:
 
     public:
     LinkedBlockingQueue() {
-        this->head = new Node(nullptr);
+        this->head = new Node();
         this->tail = nullptr;
         this->queue_size = 0;
         this->max_queue_size = 100;
     }
     ~LinkedBlockingQueue();
 
-    bool offer(E *item);
+    bool offer(E &item);
     E getListItem();
 
 };
@@ -74,39 +74,37 @@ LinkedBlockingQueue<E>::~LinkedBlockingQueue() {
 }
 
 template <typename E>
-bool LinkedBlockingQueue<E>::offer(E *item) {
-    lockTwo.lock();
+bool LinkedBlockingQueue<E>::offer(E &item) {
+    std::unique_lock<std::mutex> lock(mutexTwo);
 
     if (queue_size == max_queue_size ) {
         lockTwo.unlock();
         return false;
     }
 
-    Node *newNode = new Node(*item);
-    if (!newNode) return false;
+    Node *newNode = new Node(item);
 
     if (tail == nullptr) {
-        tail = *newNode;
+        tail = newNode;
         head->setNext(newNode);
     }
 
     else {
-        tail->setNext(*newNode);
-        tail = *newNode;
+        tail->setNext(newNode);
+        tail = newNode;
     }
     ++queue_size;
 
-    lockTwo.unlock();
     return true;
 }
 
 
 template <typename E>
 E LinkedBlockingQueue<E>::getListItem() {
-    lockOne.lock();
+    std::unique_lock<std::mutex> lock(mutexOne);
 
     if (head->getNext() == nullptr) {
-        cond1.wait(lockOne, [this]{return head->hasNext();});
+        cond1.wait(lock, [this]{return head->hasNext();});
     }
     Node *current = head->getNext();
     head->setNext(current->getNext());
@@ -119,7 +117,6 @@ E LinkedBlockingQueue<E>::getListItem() {
 
     delete current;
     --queue_size;
-    lockOne.unlock();
-    return result;
+    return &result;
 
 }
