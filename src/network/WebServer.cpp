@@ -144,7 +144,37 @@ void WebServer::serveProxy(const std::string& type, const std::string& url, cons
 		}
 	}
 	else if (type == "POST") {
+		for (const auto& proxy : proxyConfig.content) {
+			if (proxy.location == url) {
+				struct addrinfo hints, *res;
+				memset(&hints, 0, sizeof(hints));
 
+				hints.ai_family = AF_UNSPEC;
+				hints.ai_socktype = SOCK_STREAM;
+
+				int proxyAddr = getaddrinfo(proxy.host.c_str(), proxy.port.c_str(),&hints, &res);
+				if (proxyAddr != 0) {
+					std::printf("getaddrinfo failed with error: %d\n", proxyAddr);
+					continue;
+				}
+				int backendSocket = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
+				if (backendSocket == -1) {
+					std::printf("socket failed: %d\n", errno);
+					freeaddrinfo(res);
+					continue;
+				}
+
+				freeaddrinfo(res);
+
+				send(backendSocket, request.c_str(), request.length(), MSG_NOSIGNAL);
+				char buffer[4096];
+				size_t bytes;
+				while ((bytes = recv(backendSocket, buffer, sizeof(buffer), 0)) > 0) {
+					send(client, buffer, bytes, MSG_NOSIGNAL);
+				}
+				close(backendSocket);
+			}
+		}
 	}
 }
 //Defining static as its own method. Think it makes the method createClientThread easier to read

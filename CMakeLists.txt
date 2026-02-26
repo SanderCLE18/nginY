@@ -18,6 +18,8 @@ set(SOURCES
         src/ThreadPool.h
         src/utilIO/ProxyConfig.cpp
         src/utilIO/ProxyConfig.h
+        src/utils/LinkedBlockingQueue.h
+        src/utils/Logger.h
 )
 
 # Executable
