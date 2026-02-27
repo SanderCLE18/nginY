@@ -17,6 +17,8 @@
 #include <atomic>
 #include <thread>
 
+#include "../utils/Logger.h"
+
 //Might need to update to have path to config ?!?!?
 //Might need to clean up the constructor. This is ugly asl
 WebServer::WebServer(std::string ipAddress, int port, const std::string &pathConf) : ipAddress(std::move(ipAddress)), port(port){
@@ -42,7 +44,7 @@ void WebServer::resolveServer() {
     const char* str_port = temp.c_str();
     result = getaddrinfo(NULL, str_port, &hints, &addrResult);
     if (result != 0) {
-        std::printf("getaddrinfo failed with error: %d\n", result);
+    	Logger::log("getaddrinfo failed with error:", result);
         cleanupServer();
     }
 }
@@ -59,32 +61,32 @@ void WebServer::createListenSocket() {
 	setsockopt(ListenSocket, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
 	ListenSocket = socket(addrResult->ai_family, addrResult->ai_socktype, addrResult->ai_protocol);
 	if (ListenSocket == -1) {
-		std::printf("Error creating listening socket! %d\n", errno);
+		Logger::log("Error: Failed to create listening socket: ", errno);
 		cleanupServer();
 	}
 	//bind
 	result = bind(ListenSocket, addrResult->ai_addr, (int)addrResult->ai_addrlen);
 	if (result == -1)	{
-		std::printf("Error binding socket! %d\n", errno);
+		Logger::log("Error: Failed to bind listening socket: ", errno);
 		freeaddrinfo(addrResult);
 		cleanupServer();
 	}
 	freeaddrinfo(addrResult);
 	//listen
 	if (listen(ListenSocket, SOMAXCONN) == -1) {
-		std::printf("Error listening: %d\n", errno);
+		Logger::log("Error: Failed to listen on socket: ", errno);
 		cleanupServer();
 	}
 	unsigned long mode = 1;
 	ioctl(ListenSocket, FIONBIO, &mode);
 
 }
-int WebServer::createClientSocket() {
+int WebServer::createClientSocket() const {
 	//make client socket
 	int Client;
 	Client = accept(ListenSocket, NULL, NULL);
 	if (Client == -1 && errno != EWOULDBLOCK) {
-		std::printf("Accept failed: %d", errno);
+		Logger::log("Error: Failed to accept incoming connection: ", errno);
 	}
 	return Client;
 }
@@ -96,6 +98,7 @@ void WebServer::consoleInput() {
 	}
 	this->isRunning = false;
 }
+
 //
 void WebServer::serveProxy(const std::string& type, const std::string& url, const std::string& request, int client) {
 	if (type == "GET") {
@@ -111,17 +114,17 @@ void WebServer::serveProxy(const std::string& type, const std::string& url, cons
 				int proxyAddr = getaddrinfo(proxy.host.c_str(), proxy.port.c_str(), &hints, &res);
 
 				if (proxyAddr != 0) {
-					std::printf("getaddrinfo failed with error: %d\n", proxyAddr);
+					Logger::log("Error: Failed to get address info: ", proxyAddr);
 					continue;
 				}
 				int backendSocket = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
 				if (backendSocket == -1) {
-					std::printf("socket failed: %d\n", errno);
+					Logger::log("Error: Failed to create backend socket: ", errno);
 					freeaddrinfo(res);
 					continue;
 				}
 				if (connect(backendSocket, res->ai_addr, res->ai_addrlen) == -1) {
-					std::printf("connect failed: %d\n", errno);
+					Logger::log("Error: Failed to connect to backend: ", errno);
 					freeaddrinfo(res);
 					close(backendSocket);
 					continue;
@@ -154,12 +157,12 @@ void WebServer::serveProxy(const std::string& type, const std::string& url, cons
 
 				int proxyAddr = getaddrinfo(proxy.host.c_str(), proxy.port.c_str(),&hints, &res);
 				if (proxyAddr != 0) {
-					std::printf("getaddrinfo failed with error: %d\n", proxyAddr);
+					Logger::log("Error: Failed to get address info: ", errno);
 					continue;
 				}
 				int backendSocket = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
 				if (backendSocket == -1) {
-					std::printf("socket failed: %d\n", errno);
+					Logger::log("Error: Failed to create socket: ", errno);
 					freeaddrinfo(res);
 					continue;
 				}
@@ -184,12 +187,12 @@ void WebServer::serveStatic(const std::string& url, int client) {
 
 	ssize_t result = send(client, response.header.c_str(), response.header.length(), MSG_NOSIGNAL);
 	if (result == -1)
-		std::printf("Sending header failed: %d\n", errno);
+		Logger::log("Sending header failed", errno);
 
 	if (response.found) {
 		result = send(client, response.content.data(), response.content.size(), MSG_NOSIGNAL);
 		if (result == -1)
-			std::printf("Sending content failed: %d\n", errno);
+			Logger::log("Sending content failed", errno);
 	}
 }
 //Worker thread to handle multiple connections at once
@@ -222,8 +225,7 @@ void WebServer::createClientThread(int client) {
 		}
 	}
 	else {
-		std::printf("Error with recv: %d\n", errno);
-
+		Logger::log("Error with recv:", errno);
 	}
 	shutdown(client, SHUT_WR);
 	close(client);
@@ -231,6 +233,7 @@ void WebServer::createClientThread(int client) {
 }
 
 void WebServer::startListen() {
+	Logger::log("So based, I kneel...", 0);
 	//listenToClients
 	isRunning = true;
 	std::thread t(&WebServer::consoleInput, this);
@@ -244,7 +247,7 @@ void WebServer::startListen() {
 		} else {
 			int error = errno;
 			if (error != EWOULDBLOCK) {
-				std::printf("Error in main listening loop: %d\n", error);
+				Logger::log("Error in main listening loop: ", error);
 			}
 		}
 		usleep(10000);

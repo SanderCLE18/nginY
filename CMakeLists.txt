@@ -20,12 +20,20 @@ set(SOURCES
         src/utilIO/ProxyConfig.h
         src/utils/LinkedBlockingQueue.h
         src/utils/Logger.h
+        src/utils/Logger.cpp
 )
 
 # Executable
 add_executable(nginY ${SOURCES})
 
 # Linux / GCC / Clang warnings
+if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+
+    target_compile_options(nginY PRIVATE -stdlib=libc++)
+
+    target_link_options(nginY PRIVATE -stdlib=libc++)
+
+endif()
 if (CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     target_compile_options(nginY PRIVATE
             -Wall

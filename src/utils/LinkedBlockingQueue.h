@@ -2,7 +2,7 @@
 #include <atomic>
 #include <condition_variable>
 #include <mutex>
-
+#include <optional>
 
 /**
  * Ported a reduced version of LinkedBlockingQueue from Java over to C++.
@@ -39,28 +39,33 @@ private:
     Node *head;
     Node *tail;
 
-    std::atomic<int> queue_size;
-    int max_queue_size;
+    std::atomic<bool>shutdown;
+    std::atomic<int> queueSize;
+    int maxQueueSize;
 
     std::mutex mutexOne;
     std::mutex mutexTwo;
 
-    std::condition_variable cond1;
-    std::condition_variable cond2;
+    std::mutex mutexStop;
+
+    std::condition_variable notEmpty;
+    std::condition_variable notFull;
 
 
     public:
     LinkedBlockingQueue() {
         this->head = new Node();
-        this->tail = nullptr;
-        this->queue_size = 0;
-        this->max_queue_size = 100;
+        this->tail = head;
+        this->queueSize = 0;
+        this->maxQueueSize = 100;
+        this->shutdown = false;
     }
     ~LinkedBlockingQueue();
 
-    bool offer(E &item);
-    E getListItem();
-
+    bool offer(const E &item);
+    void put(const E &item);
+    std::optional<E> getListItem();
+    void cleanup();
 };
 
 template <typename E>
@@ -74,49 +79,74 @@ LinkedBlockingQueue<E>::~LinkedBlockingQueue() {
 }
 
 template <typename E>
-bool LinkedBlockingQueue<E>::offer(E &item) {
-    std::unique_lock<std::mutex> lock(mutexTwo);
+bool LinkedBlockingQueue<E>::offer(const E &item) {
 
-    if (queue_size == max_queue_size ) {
-        lockTwo.unlock();
+    if (queueSize == maxQueueSize) {
         return false;
     }
 
     Node *newNode = new Node(item);
 
-    if (tail == nullptr) {
-        tail = newNode;
-        head->setNext(newNode);
-    }
-
-    else {
+    {
+        std::unique_lock<std::mutex> lock(mutexOne);
         tail->setNext(newNode);
         tail = newNode;
+        ++queueSize;
     }
-    ++queue_size;
 
+    notEmpty.notify_one();
     return true;
 }
 
+template <typename E>
+void LinkedBlockingQueue<E>::put(const E &item) {
+    Node *newNode = new Node(item);
+
+    {
+        std::unique_lock<std::mutex> lock(mutexTwo);
+        notFull.wait(lock, [this]{return queueSize <= maxQueueSize || shutdown;});
+        if (shutdown) return;
+        tail->setNext(newNode);
+        tail = newNode;
+        ++queueSize;
+    }
+    notEmpty.notify_one();
+}
 
 template <typename E>
-E LinkedBlockingQueue<E>::getListItem() {
-    std::unique_lock<std::mutex> lock(mutexOne);
+std::optional<E> LinkedBlockingQueue<E>::getListItem() {
+    std::optional<E> result;
+    {
+        std::unique_lock<std::mutex> lock(mutexOne);
+        notEmpty.wait(lock, [this]{return head->hasNext() || shutdown;});
+        if (shutdown) return std::nullopt;
 
-    if (head->getNext() == nullptr) {
-        cond1.wait(lock, [this]{return head->hasNext();});
+        Node * current = head->getNext();
+        head->setNext(current->getNext());
+
+        if (current->getNext() == nullptr) {
+            std::unique_lock<std::mutex> putLock(mutexTwo);
+            if (tail == current) {
+                tail = head;
+            }
+        }
+        result = current->getItem();
+        delete current;
+        --queueSize;
+
     }
-    Node *current = head->getNext();
-    head->setNext(current->getNext());
+    notFull.notify_one();
+    return result;
 
-    E result = current->getItem();
+}
 
-    if (tail == current) {
-        tail = nullptr;
+template<typename E>
+void LinkedBlockingQueue<E>::cleanup() {
+    {
+        std::unique_lock<std::mutex> lock(mutexOne);
+        shutdown = true;
     }
 
-    delete current;
-    --queue_size;
-    return &result;
-
+    notFull.notify_all();
+    notEmpty.notify_all();
 }

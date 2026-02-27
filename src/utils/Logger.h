@@ -2,26 +2,52 @@
 #include "LinkedBlockingQueue.h"
 #include <chrono>
 #include <format>
+#include <thread>
+#include <fstream>
+#include <optional>
 
 class Logger {
 private:
-    static Logger * LOGGER;
+    static std::jthread logThread;
+    static Logger errorLogger;
     static LinkedBlockingQueue<std::string> queue;
+    static std::stop_token stopToken;
     Logger() {
-        while (true) {
+        logThread = std::jthread([]() {
 
-        }
+            auto now = std::chrono::system_clock::now();
+            auto in_time_t = std::chrono::system_clock::to_time_t(now);
+            std::stringstream ss;
+            ss << std::put_time(std::localtime(&in_time_t), "%Y-%m-%d");
+            std::string t_c = ss.str();
+
+            std::ofstream outFile(t_c+"_Log.txt", std::ios::app);
+
+            while (true) {
+                auto item = queue.getListItem();
+
+                //Shutdown called inside the queue.
+                if (!item.has_value()) {
+                    return;
+                }
+
+                outFile << item.value() << std::endl;
+            }
+
+            outFile.close();
+        });
     }
 
 public:
-
-    static void log(const std::string &warning, int errorCode) {
-
-        auto now = std::chrono::system_clock::now();
-        const std::string t_c = std::format("{:%Y-%m-%d %H:%M:%S}", now);
-
-        std::string log = "[" + t_c + "]" + warning + std::to_string(errorCode) + '\n';
-
-        queue.offer(log);
+    static Logger & getLogger() {
+        static Logger logger;
+        return logger;
     }
+
+    ~Logger();
+    Logger(const Logger&) = delete;
+    Logger& operator=(const Logger&) = delete;
+
+    static void requestStop();
+    static void log(const std::string &warning, int errorCode);
 };

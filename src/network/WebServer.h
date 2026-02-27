@@ -30,7 +30,10 @@ private:
     void cleanupServer() const;
     void resolveServer();
     void createListenSocket();
-    int createClientSocket();
+
+    //? IDE recommended
+    [[nodiscard]] int createClientSocket() const;
+
     int createBackendConnection();
     void createClientThread(int client);
     void consoleInput();
