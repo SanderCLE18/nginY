@@ -11,16 +11,18 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(SOURCES
         src/main.cpp
         src/network/WebServer.cpp
-        src/FileHandler.cpp
+        src/network/WebServer.h
         src/FileHandler.h
-        src/network/ProxyHandler.cpp
-        src/network/ProxyHandler.h
+        src/FileHandler.cpp
+        src/network/ProxyConnection.cpp
+        src/network/ProxyConnection.h
         src/ThreadPool.h
         src/utilIO/ProxyConfig.cpp
         src/utilIO/ProxyConfig.h
         src/utils/LinkedBlockingQueue.h
-        src/utils/Logger.h
         src/utils/Logger.cpp
+        src/utils/Logger.h
+
 )
 
 # Executable
