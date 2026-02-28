@@ -38,7 +38,7 @@ private:
     void createClientThread(int client);
     void consoleInput();
 
-    void serveStatic(const std::string& url, int client);
+    void serveStatic(std::string &url, int client);
     void serveProxy(const std::string& type, const std::string& url, const std::string& request, int client);
 
 public:

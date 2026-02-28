@@ -72,7 +72,7 @@ void ProxyConnection::forwardRequest(const std::string& host, const std::string&
 
 		while (remaining > 0) {
 			size_t read = std::min(remaining, CHUNK);
-			ssize_t n = recv(client, buf.data(), n, MSG_NOSIGNAL);
+			ssize_t n = recv(client, buf.data(), read, MSG_NOSIGNAL);
 			if (n<=0) break;
 			send(backendSocket, buf.data(), n, MSG_NOSIGNAL);
 			remaining -= n;
@@ -101,16 +101,19 @@ int ProxyConnection::createSocket(const std::string& host, const std::string& po
 
 	if (proxyAddr != 0) {
 		Logger::log("Error: Failed to get address info: ", proxyAddr);
+		return -1;
 	}
 	int backendSocket = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
 	if (backendSocket == -1) {
 		Logger::log("Error: Failed to create backend socket: ", errno);
 		freeaddrinfo(res);
+		return -1;
 	}
 	if (connect(backendSocket, res->ai_addr, res->ai_addrlen) == -1) {
 		Logger::log("Error: Failed to connect to backend: ", errno);
 		freeaddrinfo(res);
 		close(backendSocket);
+		return -1;
 	}
 
 	freeaddrinfo(res);

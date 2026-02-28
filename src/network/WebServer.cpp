@@ -58,8 +58,8 @@ void WebServer::cleanupServer() const{
 void WebServer::createListenSocket() {
 	//set socket
 	int opt = 1;
-	setsockopt(ListenSocket, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
 	ListenSocket = socket(addrResult->ai_family, addrResult->ai_socktype, addrResult->ai_protocol);
+	setsockopt(ListenSocket, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
 	if (ListenSocket == -1) {
 		Logger::log("Error: Failed to create listening socket: ", errno);
 		cleanupServer();
@@ -104,7 +104,7 @@ void WebServer::serveProxy(const std::string& type, const std::string& url, cons
 
 }
 //Defining static as its own method. Think it makes the method createClientThread easier to read
-void WebServer::serveStatic(const std::string& url, int client) {
+void WebServer::serveStatic(std::string &url, int client) {
 	std::string file = FileHandler::getUrlPath(url);
 	FileHandler::Response response = FileHandler::getSite(file);
 
