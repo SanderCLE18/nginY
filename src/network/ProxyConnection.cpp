@@ -9,6 +9,8 @@
 #include <cerrno>
 #include <cstring>
 
+#include "../FileHandler.h"
+
 
 ProxyConnection::ProxyConnection(int client, std::string  request, std::string  url, const ProxyConfig::Config& config) {
     this->client  = client;
@@ -42,12 +44,43 @@ void ProxyConnection::forwardRequest(const std::string& host, const std::string&
 
 	int backendSocket = createSocket(host, port);
 
-	if (backendSocket == -1) {
+	if (backendSocket == -1) return;
+
+	size_t headerPos = request.find("\r\n\r\n");
+
+	if (headerPos == std::string::npos) {
+		Logger::log("Error: Failed to find header in request.", errno);
 		close(backendSocket);
 		return;
 	}
 
-	send(backendSocket, request.c_str(), request.length(), MSG_NOSIGNAL);
+	//Split
+	std::string header = request.substr(0, headerPos + 4);
+	size_t contentLength = FileHandler::getContentLength(header);
+
+	send(backendSocket, header.c_str(), header.length(), MSG_NOSIGNAL);
+
+	if (contentLength > 0 ) {
+		size_t recieved = request.length() - (headerPos + 4);
+		if (recieved > 0) {
+			send(backendSocket, request.c_str() + headerPos + 4, recieved, MSG_NOSIGNAL);
+		}
+
+		size_t remaining = contentLength - recieved;
+		constexpr size_t CHUNK = 64*1024;
+		std::vector<char> buf(CHUNK);
+
+		while (remaining > 0) {
+			size_t read = std::min(remaining, CHUNK);
+			ssize_t n = recv(client, buf.data(), n, MSG_NOSIGNAL);
+			if (n<=0) break;
+			send(backendSocket, buf.data(), n, MSG_NOSIGNAL);
+			remaining -= n;
+		}
+
+	}
+
+
 	char buffer[4096];
 	size_t bytes;
 	while ((bytes = recv(backendSocket, buffer, sizeof(buffer), 0)) > 0) {

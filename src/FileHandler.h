@@ -4,11 +4,13 @@
 #pragma once
 #include <string>
 #include <vector>
+#include <sstream>
+#include <algorithm>
 
 class FileHandler
 {
 private:
-    static std::string getFileType(std::string path);
+    static std::string getFileType(const std::string& path);
 
 public:
     struct Response {
@@ -20,5 +22,8 @@ public:
     FileHandler();
     ~FileHandler();
     static Response getSite(const std::string &path);
-    static std::string getUrlPath(std::string path);
+    static std::string getUrlPath(std::string &path);
+
+    static long long getContentLength(const std::string& header);
+
 };

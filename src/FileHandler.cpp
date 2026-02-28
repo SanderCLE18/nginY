@@ -40,7 +40,7 @@ FileHandler::Response FileHandler::getSite(const std::string &path) {
 
 }
 
-std::string FileHandler::getUrlPath(std::string url) {
+std::string FileHandler::getUrlPath(std::string &url) {
     if (url == "/") url = "/index.html";
 
     std::string urlPath = "www" + url;
@@ -56,11 +56,37 @@ std::string FileHandler::getUrlPath(std::string url) {
 
 }
 
-std::string FileHandler::getFileType(std::string path) {
+std::string FileHandler::getFileType(const std::string& path) {
     if (path.ends_with(".html")) return "text/html";
     if (path.ends_with(".js")) return "application/javascript";
     if (path.ends_with(".css")) return "text/css";
     if (path.ends_with(".png")) return "image/png";
     if (path.ends_with(".jpg")) return "image/jpeg";
     return "text/plain";
+}
+
+long long FileHandler::getContentLength(const std::string& header) {
+    std::stringstream ss(header);
+    std::string line;
+    while (std::getline(ss, line)) {
+        if (!line.empty() && line.back() == '\r') {
+            line.pop_back();
+        }
+
+        std::string lower = line;
+        std::transform(lower.begin(), lower.end(), lower.begin(), ::tolower);
+
+        if (line.starts_with("content-length:")) {
+            size_t after = line.find(":");
+            std::string lengthString = line.substr(after + 1);
+            lengthString.erase(std::remove_if(lengthString.begin(), lengthString.end(), ::isspace), lengthString.end());
+            try {
+                return std::stoll(lengthString);
+            }catch (const std::exception&) {
+                return -1;
+            }
+        }
+    }
+    return -1;
+
 }
