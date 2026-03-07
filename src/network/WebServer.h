@@ -22,7 +22,6 @@ private:
 
     int epollFd;
 
-    int result;
     int HttpListenSocket;
     int HttpsListenSocket;
     int ClientSocket;

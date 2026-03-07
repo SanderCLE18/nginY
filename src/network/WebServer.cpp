@@ -50,9 +50,9 @@ WebServer::~WebServer() {
 void WebServer::resolveServer() {
     std::string temp = std::to_string(this->proxyConfig.portListen);
     const char* str_port = temp.c_str();
-    result = getaddrinfo(NULL, str_port, &hints, &addrResult);
-    if (result != 0) {
-    	Logger::log("getaddrinfo failed with error:", result);
+    int resolveResult = getaddrinfo(NULL, str_port, &hints, &addrResult);
+    if (resolveResult != 0) {
+    	Logger::log("getaddrinfo failed with error:", resolveResult);
         cleanupServer();
     }
 }
@@ -74,8 +74,8 @@ void WebServer::createListenSocket(int& ListenSocket) {
 		cleanupServer();
 	}
 	//bind
-	result = bind(ListenSocket, addrResult->ai_addr, (int)addrResult->ai_addrlen);
-	if (result == -1)	{
+	int listenResult = bind(ListenSocket, addrResult->ai_addr, (int)addrResult->ai_addrlen);
+	if (listenResult == -1)	{
 		Logger::log("Error: Failed to bind listening socket: ", errno);
 		freeaddrinfo(addrResult);
 		cleanupServer();
@@ -114,22 +114,22 @@ void WebServer::serveStatic(std::string &url, Connection& client) {
 	FileHandler::Response response = FileHandler::getSite(file);
 
 	//content is entire string
-	ssize_t result = client.write(response.content.data(), response.content.size());
-	if (result == -1)
+	ssize_t staticResult = client.write(response.content.data(), response.content.size());
+	if (staticResult == -1)
 		Logger::log("Sending header failed", errno);
 
 	if (response.found) {
-		result = client.write(response.content.data(), response.content.size());
-		if (result == -1)
+		staticResult = client.write(response.content.data(), response.content.size());
+		if (staticResult == -1)
 			Logger::log("Sending content failed", errno);
 	}
 }
 //Worker thread to handle multiple connections at once
 void WebServer::createClientThread(std::unique_ptr<Connection> client) {
 	char recvbuf[8192];
-	int result = client->read(recvbuf, sizeof(recvbuf) - 1);
-	if (result > 0) {
-		printf("Bytes received: %d\n", result);
+	int clientResult = client->read(recvbuf, sizeof(recvbuf) - 1);
+	if (clientResult > 0) {
+		printf("Bytes received: %d\n", clientResult);
 		std::string request(recvbuf);
 
 		size_t first = request.find(" ");
@@ -177,8 +177,8 @@ void WebServer::startListen() {
 	} while (isRunning.load());
 	t.join();
 	
-	result = shutdown(ClientSocket, SHUT_WR);
-	if (result == -1) {
+	int listenResult = shutdown(ClientSocket, SHUT_WR);
+	if (listenResult == -1) {
 		cleanupServer();
 	}
 	cleanupServer();
