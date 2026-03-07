@@ -23,7 +23,7 @@ public:
     ~ThreadPool();
 
     template <class F, class... Args>
-    auto submit(F&& f, Args&& ...args) -> std::future<typename std::result_of<F(Args...)>::type>;
+    auto submit(F&& f, Args&& ...args) -> std::future<typename std::invoke_result_t<F, Args...>>;
 };
 
 inline ThreadPool::ThreadPool(size_t num_threads) : running(false)
@@ -62,18 +62,22 @@ inline ThreadPool::~ThreadPool()
 
 template <class F, class... Args>
 auto ThreadPool::submit(F&& f, Args&& ...args)
-    -> std::future<typename std::result_of<F(Args...)>::type>
+    -> std::future<typename std::invoke_result_t<F, Args...>>
 {
-    using return_type = typename std::result_of<F(Args...)>::type;
+    using return_type = typename std::invoke_result_t<F, Args...>;
+    auto boundArgs = std::tuple(std::forward<Args>(args)...);
+
     auto task = std::make_shared<std::packaged_task<return_type()> >(
-        std::bind(std::forward<F>(f), std::forward<Args>(args)...));
+        [f = std::forward<F>(f), args = std::move(boundArgs)]() mutable {
+            return std::apply(f, std::move(args));
+    });
 
     std::future<return_type> res = task->get_future();
     {
         std::unique_lock<std::mutex> lock(this->mutex);
-        if (this->running)
+        if (!this->running)
         {
-            throw std::runtime_error("ThreadPool already running");
+            throw std::runtime_error("ThreadPool not running");
         }
         this->tasks.emplace_back([task]() { (*task)(); });
 

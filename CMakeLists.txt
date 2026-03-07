@@ -22,11 +22,19 @@ set(SOURCES
         src/utils/LinkedBlockingQueue.h
         src/utils/Logger.cpp
         src/utils/Logger.h
+        src/network/connections/Connection.h
+        src/network/connections/HttpsConnection.h
+        src/network/connections/HttpConnection.h
 
 )
 
 # Executable
 add_executable(nginY ${SOURCES})
+
+# OpenSSL
+find_package(OpenSSL REQUIRED)
+target_link_libraries(nginY PRIVATE OpenSSL::Crypto OpenSSL::SSL)
+
 
 # Linux / GCC / Clang warnings
 if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")

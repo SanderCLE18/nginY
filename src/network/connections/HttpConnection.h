@@ -9,11 +9,12 @@
 #include <bits/socket.h>
 #include <sys/socket.h>
 
-class HttpConnection : Connection {
+class HttpConnection : public Connection {
 
 public:
     HttpConnection(int socket) {
         this->fd = socket;
+        setBlocking(true);
     }
 
     ssize_t read(void* buffer, size_t size) override {
@@ -25,4 +26,7 @@ public:
     void close() override {
         ::close(this->fd);
     };
+    void shutdown(int how) override {
+        ::shutdown(this->fd, how);
+    }
 };

@@ -7,11 +7,13 @@
 #include <string>
 #include <utility>
 
+#include "connections/Connection.h"
+
 class ProxyConnection {
 
 private:
 	ProxyConfig::Config config;
-	int client;
+	Connection& client;
 	std::string request;
 	std::string url;
 
@@ -20,18 +22,10 @@ private:
 
 	int createSocket(const std::string& host, const std::string& port);
 
-
-
-
 public:
 
-	ProxyConnection(int client, std::string  request, std::string  url, const ProxyConfig::Config& config);
+	ProxyConnection(Connection& client, std::string  request, std::string  url, const ProxyConfig::Config& config);
 
 	~ProxyConnection();
-
-
-
-
-
 
 };

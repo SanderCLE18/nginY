@@ -10,6 +10,7 @@
 #include <netinet/in.h>
 #include <unistd.h>
 #include <sys/ioctl.h>
+#include <sys/epoll.h>
 #include <netdb.h>
 #include <cerrno>
 #include <cstring>
@@ -17,11 +18,15 @@
 #include <atomic>
 #include <thread>
 
+#include "ProxyConnection.h"
 #include "../utils/Logger.h"
+#include "connections/Connection.h"
+#include "connections/HttpConnection.h"
+#include "connections/HttpsConnection.h"
 
 //Might need to update to have path to config ?!?!?
 //Might need to clean up the constructor. This is ugly asl
-WebServer::WebServer(std::string ipAddress, int port, const std::string &pathConf) : ipAddress(std::move(ipAddress)), port(port){
+WebServer::WebServer(std::string ipAddress, const std::string &pathConf) : ipAddress(std::move(ipAddress)) {
     memset(&hints, 0, sizeof(hints));
     hints.ai_family = AF_INET;
     hints.ai_socktype = SOCK_STREAM;
@@ -31,16 +36,19 @@ WebServer::WebServer(std::string ipAddress, int port, const std::string &pathCon
 	proxyConfig = ProxyConfig::parseConfig(pathConf);
 
     resolveServer();
-    createListenSocket();
+
+	createListenSocket(HttpListenSocket);
+    createListenSocket(HttpsListenSocket);
 
 }
 
 WebServer::~WebServer() {
-    close(ListenSocket);
+    close(HttpsListenSocket);
+	close(HttpListenSocket);
 }
 
 void WebServer::resolveServer() {
-    std::string temp = std::to_string(this->port);
+    std::string temp = std::to_string(this->proxyConfig.portListen);
     const char* str_port = temp.c_str();
     result = getaddrinfo(NULL, str_port, &hints, &addrResult);
     if (result != 0) {
@@ -50,12 +58,13 @@ void WebServer::resolveServer() {
 }
 
 void WebServer::cleanupServer() const{
-    close(ListenSocket);
+    close(HttpsListenSocket);
+	close(HttpListenSocket);
     close(ClientSocket);
     exit(1);
 }
 
-void WebServer::createListenSocket() {
+void WebServer::createListenSocket(int& ListenSocket) {
 	//set socket
 	int opt = 1;
 	ListenSocket = socket(addrResult->ai_family, addrResult->ai_socktype, addrResult->ai_protocol);
@@ -81,10 +90,10 @@ void WebServer::createListenSocket() {
 	ioctl(ListenSocket, FIONBIO, &mode);
 
 }
-int WebServer::createClientSocket() const {
+int WebServer::createClientSocket(int socket) const {
 	//make client socket
 	int Client;
-	Client = accept(ListenSocket, NULL, NULL);
+	Client = accept(socket, NULL, NULL);
 	if (Client == -1 && errno != EWOULDBLOCK) {
 		Logger::log("Error: Failed to accept incoming connection: ", errno);
 	}
@@ -99,32 +108,26 @@ void WebServer::consoleInput() {
 	this->isRunning = false;
 }
 
-//
-void WebServer::serveProxy(const std::string& type, const std::string& url, const std::string& request, int client) {
-
-}
 //Defining static as its own method. Think it makes the method createClientThread easier to read
-void WebServer::serveStatic(std::string &url, int client) {
+void WebServer::serveStatic(std::string &url, Connection& client) {
 	std::string file = FileHandler::getUrlPath(url);
 	FileHandler::Response response = FileHandler::getSite(file);
 
-	ssize_t result = send(client, response.header.c_str(), response.header.length(), MSG_NOSIGNAL);
+	//content is entire string
+	ssize_t result = client.write(response.content.data(), response.content.size());
 	if (result == -1)
 		Logger::log("Sending header failed", errno);
 
 	if (response.found) {
-		result = send(client, response.content.data(), response.content.size(), MSG_NOSIGNAL);
+		result = client.write(response.content.data(), response.content.size());
 		if (result == -1)
 			Logger::log("Sending content failed", errno);
 	}
 }
 //Worker thread to handle multiple connections at once
-void WebServer::createClientThread(int client) {
-	unsigned long mode = 0; 
-	ioctl(client, FIONBIO, &mode);
-
+void WebServer::createClientThread(std::unique_ptr<Connection> client) {
 	char recvbuf[8192];
-	int result = recv(client, recvbuf, sizeof(recvbuf) - 1, 0);
+	int result = client->read(recvbuf, sizeof(recvbuf) - 1);
 	if (result > 0) {
 		printf("Bytes received: %d\n", result);
 		std::string request(recvbuf);
@@ -138,11 +141,11 @@ void WebServer::createClientThread(int client) {
 
 			//Instead of having a routing table, Claude recommended just having this to begin with.
 			if (url.starts_with("/api/")) {
-				std::string type = request.substr(0, first);
-				serveProxy(type, url, request, client);
+				ProxyConnection connection(*client, request, url, proxyConfig);
+
 			}
 			else {
-				serveStatic(url, client);
+				serveStatic(url, *client);
 			}
 
 		}
@@ -150,8 +153,8 @@ void WebServer::createClientThread(int client) {
 	else {
 		Logger::log("Error with recv:", errno);
 	}
-	shutdown(client, SHUT_WR);
-	close(client);
+	client->shutdown(SHUT_WR);
+	client->close();
 
 }
 
@@ -162,19 +165,15 @@ void WebServer::startListen() {
 	std::thread t(&WebServer::consoleInput, this);
 
 	ThreadPool pool(8);
+	epollFd = epoll_create1(0);
+
+	addToEpoll(HttpListenSocket);
+	addToEpoll(HttpsListenSocket);
+
+	std::vector<epoll_event> events(64);
 
 	do {
-		ClientSocket = WebServer::createClientSocket();
-		if (ClientSocket != -1) {
-			pool.submit(&WebServer::createClientThread, this, ClientSocket);
-		} else {
-			int error = errno;
-			if (error != EWOULDBLOCK) {
-				Logger::log("Error in main listening loop: ", error);
-			}
-		}
-		usleep(10000);
-		
+		connectionHandle(pool, events);
 	} while (isRunning.load());
 	t.join();
 	
@@ -184,3 +183,47 @@ void WebServer::startListen() {
 	}
 	cleanupServer();
 }
+
+void WebServer::addToEpoll(int socket) {
+	epoll_event event{};
+	event.events = EPOLLIN;
+	event.data.fd = socket;
+	if (epoll_ctl(epollFd, EPOLL_CTL_ADD, socket, &event) == -1) {
+		Logger::log("Error adding socket to epoll:", errno);
+	}
+}
+
+void WebServer::connectionHandle(ThreadPool &pool, std::vector<epoll_event> &events) {
+	int n = epoll_wait(epollFd, events.data(), events.size(), -1);
+	for (int i = 0; i < n; i++) {
+		int fd = events[i].data.fd;
+
+		if (fd == HttpListenSocket) {
+			int clientSocket = WebServer::createClientSocket(HttpListenSocket);
+			if (clientSocket != -1) {
+				pool.submit([this, clientSocket]() {
+					std::unique_ptr<Connection> conn = std::make_unique<HttpConnection>(clientSocket);
+					createClientThread(std::move(conn));
+				});
+			} else {
+				int error = errno;
+				if (error != EWOULDBLOCK) {
+					Logger::log("Error in main listening loop: ", error);
+				}
+			}
+		}
+		if (fd == HttpsListenSocket) {
+			int clientSocket = WebServer::createClientSocket(HttpsListenSocket);
+			if (clientSocket != -1) {
+				auto connection = std::make_unique<HttpsConnection>(clientSocket, ssl_ctx);
+				pool.submit(&WebServer::createClientThread, this, std::move(connection));
+			} else {
+				int error = errno;
+				if (error != EWOULDBLOCK) {
+					Logger::log("Error in main listening loop: ", error);
+				}
+			}
+		}
+	}
+}
+
