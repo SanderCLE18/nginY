@@ -8,6 +8,10 @@
 
 
 SSLContext::SSLContext(const ServerConfig::Config& config) {
+    if (config.keyPath.empty() || config.certPath.empty() ) {
+        ctx = nullptr;
+        return;
+    }
     ctx = SSL_CTX_new(TLS_server_method());
     if (!ctx) throw std::runtime_error("Failed to create SSL context");
 

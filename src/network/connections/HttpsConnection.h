@@ -6,6 +6,7 @@
 
 #include "Connection.h"
 #include <openssl/ssl.h>
+#include "../../utils/Logger.h"
 
 class HttpsConnection : public Connection {
 private:
@@ -49,7 +50,8 @@ public:
             this->fd = -1;
         }
     }
-    void shutdown(int how) override {
+    void shutdown(std::optional<int> how) override {
+        int placeholder = how.value();
         int ret = SSL_shutdown(ssl);
 
         if (ret == 0) {

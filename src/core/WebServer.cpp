@@ -29,7 +29,7 @@
 WebServer::WebServer(const std::string &pathConf) : serverConfig(ServerConfig::parseConfig(pathConf)), context(serverConfig) {
 
 	createListenSocket(HttpListenSocket, "80");
-	if (context.get()) {
+	if (context.get() != nullptr) {
 		createListenSocket(HttpsListenSocket, "443");
 	}
 }
