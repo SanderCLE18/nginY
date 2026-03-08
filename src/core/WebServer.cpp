@@ -32,6 +32,9 @@ WebServer::WebServer(const std::string &pathConf) : serverConfig(ServerConfig::p
 	if (context.get() != nullptr) {
 		createListenSocket(HttpsListenSocket, "443");
 	}
+	else {
+		HttpsListenSocket = -2;
+	}
 }
 
 WebServer::~WebServer() {
@@ -41,7 +44,7 @@ WebServer::~WebServer() {
 
 
 void WebServer::cleanupServer() const{
-    close(HttpsListenSocket);
+    if (HttpsListenSocket != -2) close(HttpsListenSocket);
 	close(HttpListenSocket);
     exit(1);
 }
@@ -167,7 +170,7 @@ void WebServer::startListen() {
 	epollFd = epoll_create1(0);
 
 	addToEpoll(HttpListenSocket);
-	addToEpoll(HttpsListenSocket);
+	if (HttpsListenSocket != -2) addToEpoll(HttpsListenSocket);
 
 	std::vector<epoll_event> events(64);
 
@@ -175,8 +178,7 @@ void WebServer::startListen() {
 		connectionHandle(pool, events);
 	} while (isRunning.load());
 	t.join();
-
-	cleanupServer();
+	
 }
 
 void WebServer::addToEpoll(int socket) {
@@ -207,7 +209,7 @@ void WebServer::connectionHandle(ThreadPool &pool, std::vector<epoll_event> &eve
 				}
 			}
 		}
-		if (fd == HttpsListenSocket) {
+		if (fd == HttpsListenSocket && HttpsListenSocket != -2) {
 			int clientSocket = WebServer::createClientSocket(HttpsListenSocket);
 			if (clientSocket != -1) {
 				auto connection = std::make_unique<HttpsConnection>(clientSocket, context.get());
