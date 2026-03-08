@@ -26,14 +26,12 @@
 
 //Might need to update to have path to config ?!?!?
 //Might need to clean up the constructor. This is ugly asl
-WebServer::WebServer(const std::string &pathConf) {
-
-
-	serverConfig = ServerConfig::parseConfig(pathConf);
+WebServer::WebServer(const std::string &pathConf) : serverConfig(ServerConfig::parseConfig(pathConf)), context(serverConfig) {
 
 	createListenSocket(HttpListenSocket, "80");
-    createListenSocket(HttpsListenSocket, "443");
-
+	if (context.get()) {
+		createListenSocket(HttpsListenSocket, "443");
+	}
 }
 
 WebServer::~WebServer() {
@@ -45,7 +43,6 @@ WebServer::~WebServer() {
 void WebServer::cleanupServer() const{
     close(HttpsListenSocket);
 	close(HttpListenSocket);
-    close(ClientSocket);
     exit(1);
 }
 
@@ -178,11 +175,7 @@ void WebServer::startListen() {
 		connectionHandle(pool, events);
 	} while (isRunning.load());
 	t.join();
-	
-	int listenResult = shutdown(ClientSocket, SHUT_WR);
-	if (listenResult == -1) {
-		cleanupServer();
-	}
+
 	cleanupServer();
 }
 
@@ -217,7 +210,7 @@ void WebServer::connectionHandle(ThreadPool &pool, std::vector<epoll_event> &eve
 		if (fd == HttpsListenSocket) {
 			int clientSocket = WebServer::createClientSocket(HttpsListenSocket);
 			if (clientSocket != -1) {
-				auto connection = std::make_unique<HttpsConnection>(clientSocket, ssl_ctx);
+				auto connection = std::make_unique<HttpsConnection>(clientSocket, context.get());
 				pool.submit(&WebServer::createClientThread, this, std::move(connection));
 			} else {
 				int error = errno;

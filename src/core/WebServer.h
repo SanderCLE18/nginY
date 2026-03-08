@@ -14,21 +14,22 @@
 #include "../utils/ServerConfig.h"
 #include "../network/connections/Connection.h"
 #include "ThreadPool.h"
+#include "../network/SSLContext.h"
 
 class WebServer {
 private:
-    SSL_CTX* ssl_ctx;
+    ServerConfig::Config serverConfig;
+    SSLContext context;
 
     int epollFd;
 
     int HttpListenSocket;
     int HttpsListenSocket;
-    int ClientSocket;
 
     int sendResult;
     std::atomic<bool> isRunning;
 
-    ServerConfig::Config serverConfig;
+
     void cleanupServer() const;
     void createListenSocket(int& ListenSocket, const std::string& port);
 

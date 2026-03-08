@@ -17,6 +17,16 @@ public:
         this->ssl = SSL_new(ctx);
         setBlocking(true);
         SSL_set_fd(ssl, fd);
+
+        int result = SSL_accept(ssl);
+
+        if (result <= 0) {
+            int error = SSL_get_error(ssl, result);
+            Logger::log("SSL_accept failed with error: ", error);
+            SSL_free(ssl);
+            ::close(fd);
+            throw std::runtime_error("TLS handshake failed");
+        }
     }
 
     ssize_t read(void *buf, size_t len) override {
