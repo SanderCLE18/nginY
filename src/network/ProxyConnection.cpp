@@ -9,12 +9,12 @@
 #include <cerrno>
 #include <cstring>
 
-#include "../FileHandler.h"
+#include "../utils/StaticResourceManager.h"
 #include "connections/Connection.h"
 
 
 
-ProxyConnection::ProxyConnection(Connection& client, std::string request, std::string url, const ProxyConfig::Config& config) : client(client) {
+ProxyConnection::ProxyConnection(Connection& client, std::string request, std::string url, const ServerConfig::Config& config) : client(client) {
 	this->request = std::move(request);
 	this->url = std::move(url);
 	this->config = config;
@@ -57,7 +57,7 @@ void ProxyConnection::forwardRequest(const std::string& host, const std::string&
 
 	//Split
 	std::string header = request.substr(0, headerPos + 4);
-	size_t contentLength = FileHandler::getContentLength(header);
+	size_t contentLength = StaticResourceManager::getContentLength(header);
 
 
 	send(backendSocket, header.c_str(), header.length(), MSG_NOSIGNAL);

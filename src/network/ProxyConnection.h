@@ -3,7 +3,7 @@
 //
 #pragma once
 
-#include "../utilIO/ProxyConfig.h"
+#include "../utils/ServerConfig.h"
 #include <string>
 #include <utility>
 
@@ -12,7 +12,7 @@
 class ProxyConnection {
 
 private:
-	ProxyConfig::Config config;
+	ServerConfig::Config config;
 	Connection& client;
 	std::string request;
 	std::string url;
@@ -24,7 +24,7 @@ private:
 
 public:
 
-	ProxyConnection(Connection& client, std::string  request, std::string  url, const ProxyConfig::Config& config);
+	ProxyConnection(Connection& client, std::string  request, std::string  url, const ServerConfig::Config& config);
 
 	~ProxyConnection();
 
