@@ -2,8 +2,8 @@
 // Created by Sande on 09.02.2026.
 //
 #include "WebServer.h"
-#include "../FileHandler.h"
-#include "../ThreadPool.h"
+#include "../utils/StaticResourceManager.h"
+#include "ThreadPool.h"
 #include <string>
 #include <sys/socket.h>
 #include <sys/types.h>
@@ -18,27 +18,21 @@
 #include <atomic>
 #include <thread>
 
-#include "ProxyConnection.h"
+#include "../network/ProxyConnection.h"
 #include "../utils/Logger.h"
-#include "connections/Connection.h"
-#include "connections/HttpConnection.h"
-#include "connections/HttpsConnection.h"
+#include "../network/connections/Connection.h"
+#include "../network/connections/HttpConnection.h"
+#include "../network/connections/HttpsConnection.h"
 
 //Might need to update to have path to config ?!?!?
 //Might need to clean up the constructor. This is ugly asl
-WebServer::WebServer(std::string ipAddress, const std::string &pathConf) : ipAddress(std::move(ipAddress)) {
-    memset(&hints, 0, sizeof(hints));
-    hints.ai_family = AF_INET;
-    hints.ai_socktype = SOCK_STREAM;
-    hints.ai_protocol = IPPROTO_TCP;
-    hints.ai_flags = AI_PASSIVE;
+WebServer::WebServer(const std::string &pathConf) {
 
-	proxyConfig = ProxyConfig::parseConfig(pathConf);
 
-    resolveServer();
+	serverConfig = ServerConfig::parseConfig(pathConf);
 
-	createListenSocket(HttpListenSocket);
-    createListenSocket(HttpsListenSocket);
+	createListenSocket(HttpListenSocket, "80");
+    createListenSocket(HttpsListenSocket, "443");
 
 }
 
@@ -47,15 +41,6 @@ WebServer::~WebServer() {
 	close(HttpListenSocket);
 }
 
-void WebServer::resolveServer() {
-    std::string temp = std::to_string(this->proxyConfig.portListen);
-    const char* str_port = temp.c_str();
-    int resolveResult = getaddrinfo(NULL, str_port, &hints, &addrResult);
-    if (resolveResult != 0) {
-    	Logger::log("getaddrinfo failed with error:", resolveResult);
-        cleanupServer();
-    }
-}
 
 void WebServer::cleanupServer() const{
     close(HttpsListenSocket);
@@ -64,27 +49,44 @@ void WebServer::cleanupServer() const{
     exit(1);
 }
 
-void WebServer::createListenSocket(int& ListenSocket) {
+void WebServer::createListenSocket(int& ListenSocket,const std::string& port) {
+	struct addrinfo hints, *res;
+
+	memset(&hints, 0, sizeof(hints));
+	hints.ai_family = AF_INET;
+	hints.ai_socktype = SOCK_STREAM;
+	hints.ai_protocol = IPPROTO_TCP;
+	hints.ai_flags = AI_PASSIVE;
+
+	int result = getaddrinfo(NULL, port.c_str(), &hints, &res);
+	if (result != 0) {
+		Logger::log("getaddrinfo failed:", result);
+		cleanupServer();
+		return (void)0;
+	}
 	//set socket
 	int opt = 1;
-	ListenSocket = socket(addrResult->ai_family, addrResult->ai_socktype, addrResult->ai_protocol);
+	ListenSocket = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
 	setsockopt(ListenSocket, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
 	if (ListenSocket == -1) {
 		Logger::log("Error: Failed to create listening socket: ", errno);
 		cleanupServer();
+		return (void)0;
 	}
 	//bind
-	int listenResult = bind(ListenSocket, addrResult->ai_addr, (int)addrResult->ai_addrlen);
+	int listenResult = bind(ListenSocket, res->ai_addr, (int)res->ai_addrlen);
 	if (listenResult == -1)	{
 		Logger::log("Error: Failed to bind listening socket: ", errno);
-		freeaddrinfo(addrResult);
+		freeaddrinfo(res);
 		cleanupServer();
+		return (void)0;
 	}
-	freeaddrinfo(addrResult);
+	freeaddrinfo(res);
 	//listen
 	if (listen(ListenSocket, SOMAXCONN) == -1) {
 		Logger::log("Error: Failed to listen on socket: ", errno);
 		cleanupServer();
+		return (void)0;
 	}
 	unsigned long mode = 1;
 	ioctl(ListenSocket, FIONBIO, &mode);
@@ -110,8 +112,8 @@ void WebServer::consoleInput() {
 
 //Defining static as its own method. Think it makes the method createClientThread easier to read
 void WebServer::serveStatic(std::string &url, Connection& client) {
-	std::string file = FileHandler::getUrlPath(url);
-	FileHandler::Response response = FileHandler::getSite(file);
+	std::string file = StaticResourceManager::getUrlPath(url);
+	StaticResourceManager::Response response = StaticResourceManager::getSite(file);
 
 	//content is entire string
 	ssize_t staticResult = client.write(response.content.data(), response.content.size());
@@ -141,7 +143,7 @@ void WebServer::createClientThread(std::unique_ptr<Connection> client) {
 
 			//Instead of having a routing table, Claude recommended just having this to begin with.
 			if (url.starts_with("/api/")) {
-				ProxyConnection connection(*client, request, url, proxyConfig);
+				ProxyConnection connection(*client, request, url, serverConfig);
 
 			}
 			else {

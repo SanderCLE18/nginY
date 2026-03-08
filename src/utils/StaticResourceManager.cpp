@@ -1,17 +1,17 @@
 //
 // Created by Sande on 09.02.2026.
 //
-#include "FileHandler.h"
+#include "StaticResourceManager.h"
 #include <string>
 #include <fstream>
 #include <filesystem>
 #include <sstream>
 
-FileHandler::FileHandler() = default;
+StaticResourceManager::StaticResourceManager() = default;
 
-FileHandler::~FileHandler() = default;
+StaticResourceManager::~StaticResourceManager() = default;
 
-FileHandler::Response FileHandler::getSite(const std::string &path) {
+StaticResourceManager::Response StaticResourceManager::getSite(const std::string &path) {
     Response response;
 
     std::ifstream file(path, std::ios::binary | std::ios::ate);
@@ -40,7 +40,7 @@ FileHandler::Response FileHandler::getSite(const std::string &path) {
 
 }
 
-std::string FileHandler::getUrlPath(std::string &url) {
+std::string StaticResourceManager::getUrlPath(std::string &url) {
     if (url == "/") url = "/index.html";
 
     std::string urlPath = "www" + url;
@@ -56,7 +56,7 @@ std::string FileHandler::getUrlPath(std::string &url) {
 
 }
 
-std::string FileHandler::getFileType(const std::string& path) {
+std::string StaticResourceManager::getFileType(const std::string& path) {
     if (path.ends_with(".html")) return "text/html";
     if (path.ends_with(".js")) return "application/javascript";
     if (path.ends_with(".css")) return "text/css";
@@ -65,7 +65,7 @@ std::string FileHandler::getFileType(const std::string& path) {
     return "text/plain";
 }
 
-long long FileHandler::getContentLength(const std::string& header) {
+long long StaticResourceManager::getContentLength(const std::string& header) {
     std::stringstream ss(header);
     std::string line;
     while (std::getline(ss, line)) {

@@ -1,13 +1,13 @@
 //
 // Created by Sande on 25.02.2026.
 //
-#include "ProxyConfig.h"
+#include "ServerConfig.h"
 #include <string>
 #include <fstream>
 #include <filesystem>
 #include <sstream>
 
-ProxyConfig::Config ProxyConfig::parseConfig(const std::string& path) {
+ServerConfig::Config ServerConfig::parseConfig(const std::string& path) {
     Config config;
 
     std::ifstream file(path, std::ios::binary | std::ios::ate);
@@ -22,8 +22,22 @@ ProxyConfig::Config ProxyConfig::parseConfig(const std::string& path) {
         while (std::getline(file, line)) {
             std::stringstream ss(line);
             ss >> word;
+            auto readValue = [&](std::string& field) {
+                ss >> field;
+                if (!field.empty() && field.back() == ';')
+                    field.pop_back();
+            };
             if (word == "listen") {
                 ss >> config.portListen;
+            }
+            else if (word == "ssl_password_file") {
+                readValue(config.passPath);
+            }
+            else if (word == "ssl_certificate") {
+                readValue(config.certPath);
+            }
+            else if (word == "ssl_certificate_key") {
+                readValue(config.keyPath);
             }
             else if (word == "location") {
                 ProxyRules rule;
@@ -50,7 +64,7 @@ ProxyConfig::Config ProxyConfig::parseConfig(const std::string& path) {
     file.close();
     return config;
 }
-std::tuple<std::string, std::string> ProxyConfig::parseProxy(const std::string& value) {
+std::tuple<std::string, std::string> ServerConfig::parseProxy(const std::string& value) {
     std::string target = value;
     std::string host;
     std::string port;
