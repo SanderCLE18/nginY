@@ -28,9 +28,9 @@
 //Might need to clean up the constructor. This is ugly asl
 WebServer::WebServer(const std::string &pathConf) : serverConfig(ServerConfig::parseConfig(pathConf)), context(serverConfig) {
 
-	createListenSocket(HttpListenSocket, "80");
+	createListenSocket(HttpListenSocket, "8080");
 	if (context.get() != nullptr) {
-		createListenSocket(HttpsListenSocket, "443");
+		createListenSocket(HttpsListenSocket, "8443");
 	}
 	else {
 		HttpsListenSocket = -2;
@@ -46,7 +46,7 @@ WebServer::~WebServer() {
 void WebServer::cleanupServer() const{
     if (HttpsListenSocket != -2) close(HttpsListenSocket);
 	close(HttpListenSocket);
-    exit(1);
+    exit(111);
 }
 
 void WebServer::createListenSocket(int& ListenSocket,const std::string& port) {
@@ -67,15 +67,16 @@ void WebServer::createListenSocket(int& ListenSocket,const std::string& port) {
 	//set socket
 	int opt = 1;
 	ListenSocket = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
-	setsockopt(ListenSocket, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
 	if (ListenSocket == -1) {
 		Logger::log("Error: Failed to create listening socket: ", errno);
 		cleanupServer();
 		return (void)0;
 	}
+	setsockopt(ListenSocket, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
 	//bind
 	int listenResult = bind(ListenSocket, res->ai_addr, (int)res->ai_addrlen);
 	if (listenResult == -1)	{
+		std::printf("bind failed: %s\n", strerror(errno));
 		Logger::log("Error: Failed to bind listening socket: ", errno);
 		freeaddrinfo(res);
 		cleanupServer();

@@ -6,14 +6,14 @@
 #include <thread>
 #include <condition_variable>
 #include <vector>
-
+#include <queue>
 
 class ThreadPool {
 private:
     std::vector<std::thread> threads;
     std::mutex mutex;
 
-    std::vector<std::function<void()>> tasks;
+    std::queue<std::function<void()>> tasks;
     std::condition_variable condition;
 
     bool running;
@@ -26,7 +26,7 @@ public:
     auto submit(F&& f, Args&& ...args) -> std::future<typename std::invoke_result_t<F, Args...>>;
 };
 
-inline ThreadPool::ThreadPool(size_t num_threads) : running(false)
+inline ThreadPool::ThreadPool(size_t num_threads) : running(true)
 {
     for (size_t i = 0; i < num_threads; i++)
     {
@@ -37,10 +37,10 @@ inline ThreadPool::ThreadPool(size_t num_threads) : running(false)
                 std::function<void()> task;
                 {
                     std::unique_lock<std::mutex> lock(this->mutex);
-                    this->condition.wait(lock, [this]() { return this->running || !this->tasks.empty(); });
-                    if (this->running && this->tasks.empty()) return;
+                    this->condition.wait(lock, [this]() { return !this->running || !this->tasks.empty(); });
+                    if (!this->running && this->tasks.empty()) return;
                     task = std::move(this->tasks.front());
-                    this->tasks.erase(this->tasks.begin());
+                    this->tasks.pop();
                 }
                 task();
             }
@@ -50,7 +50,7 @@ inline ThreadPool::ThreadPool(size_t num_threads) : running(false)
 inline ThreadPool::~ThreadPool()
 {
     {
-        mutex.lock();
+        std::unique_lock<std::mutex> lock(mutex);
         running = false;
     }
     condition.notify_all();
@@ -79,7 +79,7 @@ auto ThreadPool::submit(F&& f, Args&& ...args)
         {
             throw std::runtime_error("ThreadPool not running");
         }
-        this->tasks.emplace_back([task]() { (*task)(); });
+        this->tasks.push([task]() { (*task)(); });
 
         condition.notify_one();
         return res;
