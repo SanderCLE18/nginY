@@ -26,14 +26,26 @@
 
 //Might need to update to have path to config ?!?!?
 //Might need to clean up the constructor. This is ugly asl
-WebServer::WebServer(const std::string &pathConf) {
+WebServer::WebServer(const std::string &pathConf) : serverConfig(ServerConfig::parseConfig(pathConf)), context(serverConfig) {
 
-
-	serverConfig = ServerConfig::parseConfig(pathConf);
-
-	createListenSocket(HttpListenSocket, "80");
-    createListenSocket(HttpsListenSocket, "443");
-
+	try {
+		createListenSocket(HttpListenSocket, "8080");
+	}catch (std::exception& e) {
+		Logger::log("Failed to create HTTP listen socket: " + std::string(e.what()), errno);
+	}
+	if (context.get() != nullptr) {
+		try {
+			createListenSocket(HttpsListenSocket, "8443");
+		}
+		catch (std::exception& e) {
+			std::cerr << "Failed to create HTTPS listen socket: " << e.what() << std::endl;
+			HttpsListenSocket = -2;
+		}
+	}
+	else {
+		HttpsListenSocket = -2;
+		std::cout << "HTTPS not supported" << std::endl;
+	}
 }
 
 WebServer::~WebServer() {
@@ -43,9 +55,8 @@ WebServer::~WebServer() {
 
 
 void WebServer::cleanupServer() const{
-    close(HttpsListenSocket);
+    if (HttpsListenSocket != -2) close(HttpsListenSocket);
 	close(HttpListenSocket);
-    close(ClientSocket);
     exit(1);
 }
 
@@ -62,24 +73,22 @@ void WebServer::createListenSocket(int& ListenSocket,const std::string& port) {
 	if (result != 0) {
 		Logger::log("getaddrinfo failed:", result);
 		cleanupServer();
-		return (void)0;
 	}
 	//set socket
 	int opt = 1;
 	ListenSocket = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
-	setsockopt(ListenSocket, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
 	if (ListenSocket == -1) {
 		Logger::log("Error: Failed to create listening socket: ", errno);
 		cleanupServer();
-		return (void)0;
 	}
+	setsockopt(ListenSocket, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
 	//bind
 	int listenResult = bind(ListenSocket, res->ai_addr, (int)res->ai_addrlen);
 	if (listenResult == -1)	{
+		std::printf("bind failed: %s\n", strerror(errno));
 		Logger::log("Error: Failed to bind listening socket: ", errno);
 		freeaddrinfo(res);
 		cleanupServer();
-		return (void)0;
 	}
 	freeaddrinfo(res);
 	//listen
@@ -115,8 +124,8 @@ void WebServer::serveStatic(std::string &url, Connection& client) {
 	std::string file = StaticResourceManager::getUrlPath(url);
 	StaticResourceManager::Response response = StaticResourceManager::getSite(file);
 
-	//content is entire string
-	ssize_t staticResult = client.write(response.content.data(), response.content.size());
+
+	ssize_t staticResult = client.write(response.header.c_str(), response.header.size());
 	if (staticResult == -1)
 		Logger::log("Sending header failed", errno);
 
@@ -132,7 +141,8 @@ void WebServer::createClientThread(std::unique_ptr<Connection> client) {
 	int clientResult = client->read(recvbuf, sizeof(recvbuf) - 1);
 	if (clientResult > 0) {
 		printf("Bytes received: %d\n", clientResult);
-		std::string request(recvbuf);
+		//recvbuf[clientResult] = '\0';
+		std::string request(recvbuf, clientResult);
 
 		size_t first = request.find(" ");
 		size_t second = request.find(" ", first + 1);
@@ -140,11 +150,8 @@ void WebServer::createClientThread(std::unique_ptr<Connection> client) {
 		if (first != std::string::npos && second != std::string::npos) {
 			std::string url = request.substr(first + 1, second - first - 1);
 
-
-			//Instead of having a routing table, Claude recommended just having this to begin with.
 			if (url.starts_with("/api/")) {
 				ProxyConnection connection(*client, request, url, serverConfig);
-
 			}
 			else {
 				serveStatic(url, *client);
@@ -170,20 +177,14 @@ void WebServer::startListen() {
 	epollFd = epoll_create1(0);
 
 	addToEpoll(HttpListenSocket);
-	addToEpoll(HttpsListenSocket);
+	if (HttpsListenSocket != -2) addToEpoll(HttpsListenSocket);
 
 	std::vector<epoll_event> events(64);
-
 	do {
 		connectionHandle(pool, events);
 	} while (isRunning.load());
 	t.join();
 	
-	int listenResult = shutdown(ClientSocket, SHUT_WR);
-	if (listenResult == -1) {
-		cleanupServer();
-	}
-	cleanupServer();
 }
 
 void WebServer::addToEpoll(int socket) {
@@ -201,7 +202,7 @@ void WebServer::connectionHandle(ThreadPool &pool, std::vector<epoll_event> &eve
 		int fd = events[i].data.fd;
 
 		if (fd == HttpListenSocket) {
-			int clientSocket = WebServer::createClientSocket(HttpListenSocket);
+			int clientSocket = createClientSocket(HttpListenSocket);
 			if (clientSocket != -1) {
 				pool.submit([this, clientSocket]() {
 					std::unique_ptr<Connection> conn = std::make_unique<HttpConnection>(clientSocket);
@@ -214,11 +215,17 @@ void WebServer::connectionHandle(ThreadPool &pool, std::vector<epoll_event> &eve
 				}
 			}
 		}
-		if (fd == HttpsListenSocket) {
-			int clientSocket = WebServer::createClientSocket(HttpsListenSocket);
+		if (fd == HttpsListenSocket && HttpsListenSocket != -2) {
+			int clientSocket = createClientSocket(HttpsListenSocket);
 			if (clientSocket != -1) {
-				auto connection = std::make_unique<HttpsConnection>(clientSocket, ssl_ctx);
-				pool.submit(&WebServer::createClientThread, this, std::move(connection));
+				pool.submit([this, clientSocket]() {
+					try {
+						auto connection = std::make_unique<HttpsConnection>(clientSocket, context.get());
+						createClientThread(std::move(connection));
+					}catch (std::exception& e) {
+						Logger::log("Failed to create HTTPS connection: " + std::string(e.what()), errno);
+					}
+				});
 			} else {
 				int error = errno;
 				if (error != EWOULDBLOCK) {

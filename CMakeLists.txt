@@ -25,7 +25,10 @@ set(SOURCES
         src/network/connections/Connection.h
         src/network/connections/HttpsConnection.h
         src/network/connections/HttpConnection.h
-
+        src/network/SSLContext.cpp
+        src/network/SSLContext.h
+        src/utils/FileReader.cpp
+        src/utils/FileReader.h
 )
 
 # Executable

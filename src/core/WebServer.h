@@ -2,33 +2,29 @@
 // Created by Sande on 09.02.2026.
 //
 #pragma once
-#include <sys/socket.h>
-#include <sys/types.h>
-#include <netinet/in.h>
 #include <string>
 #include <atomic>
-#include <netdb.h>
-#include <openssl/types.h>
 #include <sys/epoll.h>
 
 #include "../utils/ServerConfig.h"
 #include "../network/connections/Connection.h"
 #include "ThreadPool.h"
+#include "../network/SSLContext.h"
 
 class WebServer {
 private:
-    SSL_CTX* ssl_ctx;
+    ServerConfig::Config serverConfig;
+    SSLContext context;
 
     int epollFd;
 
     int HttpListenSocket;
     int HttpsListenSocket;
-    int ClientSocket;
 
     int sendResult;
     std::atomic<bool> isRunning;
 
-    ServerConfig::Config serverConfig;
+
     void cleanupServer() const;
     void createListenSocket(int& ListenSocket, const std::string& port);
 

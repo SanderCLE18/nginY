@@ -26,7 +26,10 @@ public:
     void close() override {
         ::close(this->fd);
     };
-    void shutdown(int how) override {
-        ::shutdown(this->fd, how);
+    void shutdown(std::optional<int> how) override {
+        if (!how.has_value()) {
+            ::shutdown(this->fd, -1);
+        }
+        ::shutdown(this->fd, how.value());
     }
 };

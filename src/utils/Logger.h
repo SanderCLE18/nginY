@@ -13,6 +13,9 @@ private:
     static LinkedBlockingQueue<std::string> queue;
     static std::stop_token stopToken;
     Logger() {
+        std::atexit([]() {
+            queue.cleanup();
+        });
         logThread = std::jthread([]() {
 
             auto now = std::chrono::system_clock::now();
@@ -23,15 +26,18 @@ private:
 
             std::ofstream outFile(t_c+"_Log.txt", std::ios::app);
 
-            while (true) {
+            while (!stopToken.stop_requested()) {
                 auto item = queue.getListItem();
-
-                //Shutdown called inside the queue.
                 if (!item.has_value()) {
                     return;
                 }
 
                 outFile << item.value() << std::endl;
+            }
+            while (true) {
+                auto item = queue.tryGetListItem(); // non-blocking drain
+                if (!item.has_value()) break;
+                 outFile << item.value() << "\n";
             }
 
             outFile.close();
