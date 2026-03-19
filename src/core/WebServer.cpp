@@ -34,6 +34,7 @@ WebServer::WebServer(const std::string &pathConf) : serverConfig(ServerConfig::p
 	}
 	else {
 		HttpsListenSocket = -2;
+		std::cout << "HTTPS not supported" << std::endl;
 	}
 }
 
@@ -117,7 +118,7 @@ void WebServer::serveStatic(std::string &url, Connection& client) {
 	StaticResourceManager::Response response = StaticResourceManager::getSite(file);
 
 	//content is entire string
-	ssize_t staticResult = client.write(response.content.data(), response.content.size());
+	ssize_t staticResult = client.write(response.header.c_str(), response.header.size());
 	if (staticResult == -1)
 		Logger::log("Sending header failed", errno);
 
@@ -133,7 +134,8 @@ void WebServer::createClientThread(std::unique_ptr<Connection> client) {
 	int clientResult = client->read(recvbuf, sizeof(recvbuf) - 1);
 	if (clientResult > 0) {
 		printf("Bytes received: %d\n", clientResult);
-		std::string request(recvbuf);
+		//recvbuf[clientResult] = '\0';
+		std::string request(recvbuf, clientResult);
 
 		size_t first = request.find(" ");
 		size_t second = request.find(" ", first + 1);
@@ -141,11 +143,8 @@ void WebServer::createClientThread(std::unique_ptr<Connection> client) {
 		if (first != std::string::npos && second != std::string::npos) {
 			std::string url = request.substr(first + 1, second - first - 1);
 
-
-			//Instead of having a routing table, Claude recommended just having this to begin with.
 			if (url.starts_with("/api/")) {
 				ProxyConnection connection(*client, request, url, serverConfig);
-
 			}
 			else {
 				serveStatic(url, *client);
@@ -174,7 +173,6 @@ void WebServer::startListen() {
 	if (HttpsListenSocket != -2) addToEpoll(HttpsListenSocket);
 
 	std::vector<epoll_event> events(64);
-
 	do {
 		connectionHandle(pool, events);
 	} while (isRunning.load());
@@ -197,7 +195,7 @@ void WebServer::connectionHandle(ThreadPool &pool, std::vector<epoll_event> &eve
 		int fd = events[i].data.fd;
 
 		if (fd == HttpListenSocket) {
-			int clientSocket = WebServer::createClientSocket(HttpListenSocket);
+			int clientSocket = createClientSocket(HttpListenSocket);
 			if (clientSocket != -1) {
 				pool.submit([this, clientSocket]() {
 					std::unique_ptr<Connection> conn = std::make_unique<HttpConnection>(clientSocket);
@@ -211,7 +209,7 @@ void WebServer::connectionHandle(ThreadPool &pool, std::vector<epoll_event> &eve
 			}
 		}
 		if (fd == HttpsListenSocket && HttpsListenSocket != -2) {
-			int clientSocket = WebServer::createClientSocket(HttpsListenSocket);
+			int clientSocket = createClientSocket(HttpsListenSocket);
 			if (clientSocket != -1) {
 				auto connection = std::make_unique<HttpsConnection>(clientSocket, context.get());
 				pool.submit(&WebServer::createClientThread, this, std::move(connection));

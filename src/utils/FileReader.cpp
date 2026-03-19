@@ -7,7 +7,7 @@
 
 std::string FileReader::getPassword(const std::string &path) {
     std::ifstream f(path);
-    if (!f) throw std::runtime_error("Failed to open password file");
+    if (!f) return "";
 
     std::string password;
     std::getline(f, password);

@@ -22,7 +22,8 @@ public:
 
     struct Config {
         std::vector<ServerConfig::ProxyRules> content;
-        int portListen;
+        int httpsPortListen;
+        int httpPortListen;
         bool found;
 
         std::string passPath;

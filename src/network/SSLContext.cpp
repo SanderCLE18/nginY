@@ -5,10 +5,12 @@
 #include "SSLContext.h"
 #include "../utils/FileReader.h"
 #include "../utils/ServerConfig.h"
+#include "../utils/Logger.h"
 
 
 SSLContext::SSLContext(const ServerConfig::Config& config) {
     if (config.keyPath.empty() || config.certPath.empty() ) {
+        Logger::log("SSL context creation failed: missing key or certificate path: ", 1);
         ctx = nullptr;
         return;
     }
@@ -21,13 +23,16 @@ SSLContext::SSLContext(const ServerConfig::Config& config) {
 
     std::string password = FileReader::getPassword(config.passPath);
 
-    SSL_CTX_set_default_passwd_cb_userdata(ctx, (void*)password.c_str());
-    SSL_CTX_set_default_passwd_cb(ctx, [](char* buf, int size, int, void* userdata) -> int {
-       const char* pwd = static_cast<const char*>(userdata);
-        strncpy(buf, pwd, size);
-        buf[size - 1] = '\0';
-        return strlen(buf);
-    });
+    if (!password.empty()) {
+        SSL_CTX_set_default_passwd_cb_userdata(ctx, (void*)password.c_str());
+        SSL_CTX_set_default_passwd_cb(ctx, [](char* buf, int size, int, void* userdata) -> int {
+           const char* pwd = static_cast<const char*>(userdata);
+            strncpy(buf, pwd, size);
+            buf[size - 1] = '\0';
+            return strlen(buf);
+        });
+    }
+
 
 
     if (SSL_CTX_use_PrivateKey_file(ctx, config.keyPath.c_str(), SSL_FILETYPE_PEM) <= 0) {

@@ -2,13 +2,8 @@
 // Created by Sande on 09.02.2026.
 //
 #pragma once
-#include <sys/socket.h>
-#include <sys/types.h>
-#include <netinet/in.h>
 #include <string>
 #include <atomic>
-#include <netdb.h>
-#include <openssl/types.h>
 #include <sys/epoll.h>
 
 #include "../utils/ServerConfig.h"

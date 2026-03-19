@@ -23,7 +23,7 @@ public:
 
         if (result <= 0) {
             int error = SSL_get_error(ssl, result);
-            Logger::log("SSL_accept failed with error: ", error);
+            Logger::log("SSL_accept failed after result: " + std::to_string(result) + "error :", error);
             SSL_free(ssl);
             ::close(fd);
             throw std::runtime_error("TLS handshake failed");
