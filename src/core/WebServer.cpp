@@ -28,9 +28,19 @@
 //Might need to clean up the constructor. This is ugly asl
 WebServer::WebServer(const std::string &pathConf) : serverConfig(ServerConfig::parseConfig(pathConf)), context(serverConfig) {
 
-	createListenSocket(HttpListenSocket, "8080");
+	try {
+		createListenSocket(HttpListenSocket, "8080");
+	}catch (std::exception& e) {
+		Logger::log("Failed to create HTTP listen socket: " + std::string(e.what()), errno);
+	}
 	if (context.get() != nullptr) {
-		createListenSocket(HttpsListenSocket, "8443");
+		try {
+			createListenSocket(HttpsListenSocket, "8443");
+		}
+		catch (std::exception& e) {
+			std::cerr << "Failed to create HTTPS listen socket: " << e.what() << std::endl;
+			HttpsListenSocket = -2;
+		}
 	}
 	else {
 		HttpsListenSocket = -2;
@@ -47,7 +57,7 @@ WebServer::~WebServer() {
 void WebServer::cleanupServer() const{
     if (HttpsListenSocket != -2) close(HttpsListenSocket);
 	close(HttpListenSocket);
-    exit(111);
+    exit(1);
 }
 
 void WebServer::createListenSocket(int& ListenSocket,const std::string& port) {
@@ -63,7 +73,6 @@ void WebServer::createListenSocket(int& ListenSocket,const std::string& port) {
 	if (result != 0) {
 		Logger::log("getaddrinfo failed:", result);
 		cleanupServer();
-		return (void)0;
 	}
 	//set socket
 	int opt = 1;
@@ -71,7 +80,6 @@ void WebServer::createListenSocket(int& ListenSocket,const std::string& port) {
 	if (ListenSocket == -1) {
 		Logger::log("Error: Failed to create listening socket: ", errno);
 		cleanupServer();
-		return (void)0;
 	}
 	setsockopt(ListenSocket, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
 	//bind
@@ -81,7 +89,6 @@ void WebServer::createListenSocket(int& ListenSocket,const std::string& port) {
 		Logger::log("Error: Failed to bind listening socket: ", errno);
 		freeaddrinfo(res);
 		cleanupServer();
-		return (void)0;
 	}
 	freeaddrinfo(res);
 	//listen
@@ -117,7 +124,7 @@ void WebServer::serveStatic(std::string &url, Connection& client) {
 	std::string file = StaticResourceManager::getUrlPath(url);
 	StaticResourceManager::Response response = StaticResourceManager::getSite(file);
 
-	//content is entire string
+
 	ssize_t staticResult = client.write(response.header.c_str(), response.header.size());
 	if (staticResult == -1)
 		Logger::log("Sending header failed", errno);
@@ -211,8 +218,14 @@ void WebServer::connectionHandle(ThreadPool &pool, std::vector<epoll_event> &eve
 		if (fd == HttpsListenSocket && HttpsListenSocket != -2) {
 			int clientSocket = createClientSocket(HttpsListenSocket);
 			if (clientSocket != -1) {
-				auto connection = std::make_unique<HttpsConnection>(clientSocket, context.get());
-				pool.submit(&WebServer::createClientThread, this, std::move(connection));
+				pool.submit([this, clientSocket]() {
+					try {
+						auto connection = std::make_unique<HttpsConnection>(clientSocket, context.get());
+						createClientThread(std::move(connection));
+					}catch (std::exception& e) {
+						Logger::log("Failed to create HTTPS connection: " + std::string(e.what()), errno);
+					}
+				});
 			} else {
 				int error = errno;
 				if (error != EWOULDBLOCK) {

@@ -7,7 +7,6 @@
 #include <vector>
 
 class ServerConfig {
-private:
     static std::tuple<std::string, std::string> parseProxy(const std::string& value);
 
 public:
@@ -21,7 +20,7 @@ public:
     };
 
     struct Config {
-        std::vector<ServerConfig::ProxyRules> content;
+        std::vector<ProxyRules> content;
         int httpsPortListen;
         int httpPortListen;
         bool found;
