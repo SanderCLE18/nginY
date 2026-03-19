@@ -1,0 +1,106 @@
+//
+// Created by Sande on 25.02.2026.
+//
+#include "ServerConfig.h"
+#include <string>
+#include <fstream>
+#include <filesystem>
+#include <iostream>
+#include <sstream>
+
+#include "Logger.h"
+
+ServerConfig::Config ServerConfig::parseConfig(const std::string& path) {
+    Config config;
+
+    std::ifstream file(path);
+
+    if (!file.is_open()) {
+        config.httpPortListen = 80;
+        config.httpsPortListen = 443;
+        config.found = false;
+        Logger::log("Config file not found", 1);
+        return config;
+    }
+    config.found = true;
+    std::cout << "Config file found!" << std::endl;
+    std::string line, word;
+    while (std::getline(file, line)) {
+        if (!line.empty() && line.back() == '\r')
+            line.pop_back();
+        word.clear();
+        std::stringstream ss(line);
+        ss >> word;
+        auto readValue = [&](std::string& field) {
+            ss >> field;
+            if (!field.empty() && field.back() == ';')
+                field.pop_back();
+        };
+
+        if (word == "httpsListen") {
+            std::cout << "found listenHttps" << std::endl;
+            ss >> config.httpsPortListen;
+        }
+        else if (word == "httpListen") {
+            std::cout << "found listenHttp" << std::endl;
+            ss >> config.httpPortListen;
+        }
+        else if (word == "ssl_password_file") {
+            std::cout << "found ssl_password_file" << std::endl;
+            readValue(config.passPath);
+        }
+        else if (word == "ssl_certificate") {
+            std::cout << "found ssl_certificate" << std::endl;
+            readValue(config.certPath);
+        }
+        else if (word == "ssl_certificate_key") {
+            std::cout << "found ssl_certificate_key" << std::endl;
+            readValue(config.keyPath);
+        }
+        else if (word == "location") {
+            std::cout << "found location" << std::endl;
+            ProxyRules rule;
+            ss >> rule.location;
+            while (std::getline(file, line) && line.find('}') == std::string::npos) {
+                std::stringstream block(line);
+
+                std::string key, value;
+                block >> key >> value;
+
+                if (key == "proxy_pass") {
+                    auto [host,port] = parseProxy(value);
+                    rule.host = host;
+                    rule.port = port;
+                }
+                else if (key == "root") {
+                    rule.proxy = false;
+                }
+            }
+            config.content.push_back(rule);
+        }
+    }
+    file.close();
+    return config;
+}
+std::tuple<std::string, std::string> ServerConfig::parseProxy(const std::string& value) {
+    std::string target = value;
+    std::string host;
+    std::string port;
+    if (target.ends_with(';')) target.pop_back();
+    size_t start = target.find("://");
+
+    if (start != std::string::npos) {
+        target = target.substr(start+3);
+    }
+    size_t end = target.find(':');
+    if (end != std::string::npos) {
+        host = target.substr(0, end);
+        port = target.substr(end+1);
+    }
+    else {
+        //magic number
+        port = "80";
+        host = target;
+    }
+    return std::make_tuple(host, port);
+}

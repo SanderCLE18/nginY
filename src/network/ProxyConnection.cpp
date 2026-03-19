@@ -9,20 +9,21 @@
 #include <cerrno>
 #include <cstring>
 
-#include "../FileHandler.h"
+#include "../utils/StaticResourceManager.h"
+#include "connections/Connection.h"
 
 
-ProxyConnection::ProxyConnection(int client, std::string  request, std::string  url, const ProxyConfig::Config& config) {
-    this->client  = client;
-    this->request = std::move(request);
-    this->url = std::move(url);
-    this->config = config;
 
-	this->newConnection();
+ProxyConnection::ProxyConnection(Connection& client, std::string request, std::string url, const ServerConfig::Config& config) : client(client) {
+	this->request = std::move(request);
+	this->url = std::move(url);
+	this->config = config;
+
+	newConnection();
 }
 
 ProxyConnection::~ProxyConnection() {
-	close(client);
+	client.close();
 }
 
 void ProxyConnection::newConnection() {
@@ -56,7 +57,8 @@ void ProxyConnection::forwardRequest(const std::string& host, const std::string&
 
 	//Split
 	std::string header = request.substr(0, headerPos + 4);
-	size_t contentLength = FileHandler::getContentLength(header);
+	size_t contentLength = StaticResourceManager::getContentLength(header);
+
 
 	send(backendSocket, header.c_str(), header.length(), MSG_NOSIGNAL);
 
@@ -72,7 +74,7 @@ void ProxyConnection::forwardRequest(const std::string& host, const std::string&
 
 		while (remaining > 0) {
 			size_t read = std::min(remaining, CHUNK);
-			ssize_t n = recv(client, buf.data(), read, MSG_NOSIGNAL);
+			ssize_t n = client.read(buf.data(), read);
 			if (n<=0) break;
 			send(backendSocket, buf.data(), n, MSG_NOSIGNAL);
 			remaining -= n;
@@ -84,7 +86,7 @@ void ProxyConnection::forwardRequest(const std::string& host, const std::string&
 	char buffer[4096];
 	size_t bytes;
 	while ((bytes = recv(backendSocket, buffer, sizeof(buffer), 0)) > 0) {
-		send(client, buffer, bytes, MSG_NOSIGNAL);
+		client.write(buffer, bytes);
 	}
 
 	close(backendSocket);

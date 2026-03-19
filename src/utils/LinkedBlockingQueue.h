@@ -65,6 +65,7 @@ private:
     bool offer(const E &item);
     void put(const E &item);
     std::optional<E> getListItem();
+    std::optional<E> tryGetListItem();
     void cleanup();
 };
 
@@ -139,7 +140,29 @@ std::optional<E> LinkedBlockingQueue<E>::getListItem() {
     return result;
 
 }
+template<typename E>
+std::optional<E> LinkedBlockingQueue<E>::tryGetListItem() {
+    std::optional<E> result;
+    {
+        std::unique_lock<std::mutex> lock(mutexOne);
+        if (!head->hasNext()) {
+            return std::nullopt;
+        }
+        Node * current = head->getNext();
+        head->setNext(current->getNext());
 
+        if (current->getNext() == nullptr) {
+            std::unique_lock<std::mutex> putLock(mutexTwo);
+            if (tail == current) {
+                tail = head;
+            }
+        }
+        result = current->getItem();
+        delete current;
+        --queueSize;
+        return result;
+    }
+}
 template<typename E>
 void LinkedBlockingQueue<E>::cleanup() {
     {

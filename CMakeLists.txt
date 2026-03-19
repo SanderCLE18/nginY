@@ -9,24 +9,35 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 # Source files
 set(SOURCES
-        src/main.cpp
-        src/network/WebServer.cpp
-        src/network/WebServer.h
-        src/FileHandler.h
-        src/FileHandler.cpp
+        src/core/main.cpp
+        src/core/WebServer.cpp
+        src/core/WebServer.h
+        src/utils/StaticResourceManager.h
+        src/utils/StaticResourceManager.cpp
         src/network/ProxyConnection.cpp
         src/network/ProxyConnection.h
-        src/ThreadPool.h
-        src/utilIO/ProxyConfig.cpp
-        src/utilIO/ProxyConfig.h
+        src/core/ThreadPool.h
+        src/utils/ServerConfig.cpp
+        src/utils/ServerConfig.h
         src/utils/LinkedBlockingQueue.h
         src/utils/Logger.cpp
         src/utils/Logger.h
-
+        src/network/connections/Connection.h
+        src/network/connections/HttpsConnection.h
+        src/network/connections/HttpConnection.h
+        src/network/SSLContext.cpp
+        src/network/SSLContext.h
+        src/utils/FileReader.cpp
+        src/utils/FileReader.h
 )
 
 # Executable
 add_executable(nginY ${SOURCES})
+
+# OpenSSL
+find_package(OpenSSL REQUIRED)
+target_link_libraries(nginY PRIVATE OpenSSL::Crypto OpenSSL::SSL)
+
 
 # Linux / GCC / Clang warnings
 if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")

@@ -7,7 +7,7 @@
 #include <sstream>
 #include <algorithm>
 
-class FileHandler
+class StaticResourceManager
 {
 private:
     static std::string getFileType(const std::string& path);
@@ -19,8 +19,8 @@ public:
         bool found;
     };
 
-    FileHandler();
-    ~FileHandler();
+    StaticResourceManager();
+    ~StaticResourceManager();
     static Response getSite(const std::string &path);
     static std::string getUrlPath(std::string &path);
 

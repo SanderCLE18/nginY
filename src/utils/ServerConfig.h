@@ -6,8 +6,7 @@
 #include <string>
 #include <vector>
 
-class ProxyConfig {
-private:
+class ServerConfig {
     static std::tuple<std::string, std::string> parseProxy(const std::string& value);
 
 public:
@@ -16,13 +15,19 @@ public:
         std::string location;
         std::string host;
         std::string port;
+
         bool proxy;
     };
 
     struct Config {
-        std::vector<ProxyConfig::ProxyRules> content;
-        int portListen;
+        std::vector<ProxyRules> content;
+        int httpsPortListen;
+        int httpPortListen;
         bool found;
+
+        std::string passPath;
+        std::string certPath;
+        std::string keyPath;
     };
 
     static Config parseConfig(const std::string& path);

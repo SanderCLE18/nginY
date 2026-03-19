@@ -6,14 +6,14 @@
 #include <thread>
 #include <condition_variable>
 #include <vector>
-
+#include <queue>
 
 class ThreadPool {
 private:
     std::vector<std::thread> threads;
     std::mutex mutex;
 
-    std::vector<std::function<void()>> tasks;
+    std::queue<std::function<void()>> tasks;
     std::condition_variable condition;
 
     bool running;
@@ -23,10 +23,10 @@ public:
     ~ThreadPool();
 
     template <class F, class... Args>
-    auto submit(F&& f, Args&& ...args) -> std::future<typename std::result_of<F(Args...)>::type>;
+    auto submit(F&& f, Args&& ...args) -> std::future<typename std::invoke_result_t<F, Args...>>;
 };
 
-inline ThreadPool::ThreadPool(size_t num_threads) : running(false)
+inline ThreadPool::ThreadPool(size_t num_threads) : running(true)
 {
     for (size_t i = 0; i < num_threads; i++)
     {
@@ -37,10 +37,10 @@ inline ThreadPool::ThreadPool(size_t num_threads) : running(false)
                 std::function<void()> task;
                 {
                     std::unique_lock<std::mutex> lock(this->mutex);
-                    this->condition.wait(lock, [this]() { return this->running || !this->tasks.empty(); });
-                    if (this->running && this->tasks.empty()) return;
+                    this->condition.wait(lock, [this]() { return !this->running || !this->tasks.empty(); });
+                    if (!this->running && this->tasks.empty()) return;
                     task = std::move(this->tasks.front());
-                    this->tasks.erase(this->tasks.begin());
+                    this->tasks.pop();
                 }
                 task();
             }
@@ -50,7 +50,7 @@ inline ThreadPool::ThreadPool(size_t num_threads) : running(false)
 inline ThreadPool::~ThreadPool()
 {
     {
-        mutex.lock();
+        std::unique_lock<std::mutex> lock(mutex);
         running = false;
     }
     condition.notify_all();
@@ -62,20 +62,24 @@ inline ThreadPool::~ThreadPool()
 
 template <class F, class... Args>
 auto ThreadPool::submit(F&& f, Args&& ...args)
-    -> std::future<typename std::result_of<F(Args...)>::type>
+    -> std::future<typename std::invoke_result_t<F, Args...>>
 {
-    using return_type = typename std::result_of<F(Args...)>::type;
+    using return_type = typename std::invoke_result_t<F, Args...>;
+    auto boundArgs = std::tuple(std::forward<Args>(args)...);
+
     auto task = std::make_shared<std::packaged_task<return_type()> >(
-        std::bind(std::forward<F>(f), std::forward<Args>(args)...));
+        [f = std::forward<F>(f), args = std::move(boundArgs)]() mutable {
+            return std::apply(f, std::move(args));
+    });
 
     std::future<return_type> res = task->get_future();
     {
         std::unique_lock<std::mutex> lock(this->mutex);
-        if (this->running)
+        if (!this->running)
         {
-            throw std::runtime_error("ThreadPool already running");
+            throw std::runtime_error("ThreadPool not running");
         }
-        this->tasks.emplace_back([task]() { (*task)(); });
+        this->tasks.push([task]() { (*task)(); });
 
         condition.notify_one();
         return res;
