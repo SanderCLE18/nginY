@@ -24,6 +24,7 @@ public:
 
     template <class F, class... Args>
     auto submit(F&& f, Args&& ...args) -> std::future<typename std::invoke_result_t<F, Args...>>;
+    void shutdown();
 };
 
 inline ThreadPool::ThreadPool(size_t num_threads) : running(true)
@@ -49,15 +50,7 @@ inline ThreadPool::ThreadPool(size_t num_threads) : running(true)
 }
 inline ThreadPool::~ThreadPool()
 {
-    {
-        std::unique_lock<std::mutex> lock(mutex);
-        running = false;
-    }
-    condition.notify_all();
-    for (auto& thread : threads)
-    {
-        thread.join();
-    }
+    shutdown();
 }
 
 template <class F, class... Args>
@@ -85,4 +78,17 @@ auto ThreadPool::submit(F&& f, Args&& ...args)
         return res;
 
     }
+}
+
+inline void ThreadPool::shutdown() {
+    {
+        std::unique_lock lock(mutex);
+        if (!running) return;
+        running = false;
+    }
+    condition.notify_all();
+    for (auto& thread : threads) {
+        thread.join();
+    }
+
 }

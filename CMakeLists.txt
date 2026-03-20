@@ -38,6 +38,30 @@ add_executable(nginY ${SOURCES})
 find_package(OpenSSL REQUIRED)
 target_link_libraries(nginY PRIVATE OpenSSL::Crypto OpenSSL::SSL)
 
+#gTest
+include(FetchContent)
+FetchContent_Declare(
+        googletest
+        URL https://github.com/google/googletest/archive/52eb8108c5bdec04579160ae17225d66034bd723.zip
+        DOWNLOAD_EXTRACT_TIMESTAMP true
+)
+FetchContent_MakeAvailable(googletest)
+
+enable_testing()
+add_executable(nginY_tests
+        tests/core/test_Threadpool.cpp
+)
+target_include_directories(nginY_tests PRIVATE
+        ${CMAKE_SOURCE_DIR}/src
+)
+target_link_libraries(nginY_tests PRIVATE
+        GTest::gtest
+        GTest::gtest_main
+        OpenSSL::Crypto
+        OpenSSL::SSL
+)
+include(GoogleTest)
+gtest_discover_tests(nginY_tests)
 
 # Linux / GCC / Clang warnings
 if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")

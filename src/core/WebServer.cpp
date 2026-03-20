@@ -168,7 +168,7 @@ void WebServer::createClientThread(std::unique_ptr<Connection> client) {
 }
 
 void WebServer::startListen() {
-	Logger::log("So based, I kneel...", 0);
+	//Logger::log("So based, I kneel...", 0);
 	//listenToClients
 	isRunning = true;
 	std::thread t(&WebServer::consoleInput, this);
