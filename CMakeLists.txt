@@ -50,6 +50,9 @@ FetchContent_MakeAvailable(googletest)
 enable_testing()
 add_executable(nginY_tests
         tests/core/test_Threadpool.cpp
+        tests/network/connections/test_HttpConnection.cpp
+        tests/network/connections/gTestConnection.cpp
+        tests/network/connections/gTestConnectionParser.h
 )
 target_include_directories(nginY_tests PRIVATE
         ${CMAKE_SOURCE_DIR}/src
@@ -57,6 +60,7 @@ target_include_directories(nginY_tests PRIVATE
 target_link_libraries(nginY_tests PRIVATE
         GTest::gtest
         GTest::gtest_main
+        GTest::gmock_main
         OpenSSL::Crypto
         OpenSSL::SSL
 )

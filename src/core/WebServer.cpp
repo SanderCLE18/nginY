@@ -69,7 +69,7 @@ void WebServer::createListenSocket(int& ListenSocket,const std::string& port) {
 	hints.ai_protocol = IPPROTO_TCP;
 	hints.ai_flags = AI_PASSIVE;
 
-	int result = getaddrinfo(NULL, port.c_str(), &hints, &res);
+	int result = getaddrinfo(nullptr, port.c_str(), &hints, &res);
 	if (result != 0) {
 		Logger::log("getaddrinfo failed:", result);
 		cleanupServer();
@@ -83,7 +83,7 @@ void WebServer::createListenSocket(int& ListenSocket,const std::string& port) {
 	}
 	setsockopt(ListenSocket, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
 	//bind
-	int listenResult = bind(ListenSocket, res->ai_addr, (int)res->ai_addrlen);
+	int listenResult = bind(ListenSocket, res->ai_addr, static_cast<int>(res->ai_addrlen));
 	if (listenResult == -1)	{
 		std::printf("bind failed: %s\n", strerror(errno));
 		Logger::log("Error: Failed to bind listening socket: ", errno);
@@ -104,7 +104,7 @@ void WebServer::createListenSocket(int& ListenSocket,const std::string& port) {
 int WebServer::createClientSocket(int socket) const {
 	//make client socket
 	int Client;
-	Client = accept(socket, NULL, NULL);
+	Client = accept(socket, nullptr, nullptr);
 	if (Client == -1 && errno != EWOULDBLOCK) {
 		Logger::log("Error: Failed to accept incoming connection: ", errno);
 	}
@@ -144,8 +144,8 @@ void WebServer::createClientThread(std::unique_ptr<Connection> client) {
 		//recvbuf[clientResult] = '\0';
 		std::string request(recvbuf, clientResult);
 
-		size_t first = request.find(" ");
-		size_t second = request.find(" ", first + 1);
+		size_t first = request.find(' ');
+		size_t second = request.find(' ', first + 1);
 
 		if (first != std::string::npos && second != std::string::npos) {
 			std::string url = request.substr(first + 1, second - first - 1);
@@ -187,7 +187,7 @@ void WebServer::startListen() {
 	
 }
 
-void WebServer::addToEpoll(int socket) {
+void WebServer::addToEpoll(int socket) const {
 	epoll_event event{};
 	event.events = EPOLLIN;
 	event.data.fd = socket;

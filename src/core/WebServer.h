@@ -37,7 +37,7 @@ private:
     void serveStatic(std::string &url, Connection &client);
     void connectionHandle(ThreadPool& pool, std::vector<epoll_event> &events);
 
-    void addToEpoll(int socket);
+    void addToEpoll(int socket) const;
 
 public:
     WebServer(const std::string& path);
