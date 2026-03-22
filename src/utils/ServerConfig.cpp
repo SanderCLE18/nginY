@@ -16,14 +16,14 @@ ServerConfig::Config ServerConfig::parseConfig(const std::string& path) {
     std::ifstream file(path);
 
     if (!file.is_open()) {
-        config.httpPortListen = 80;
-        config.httpsPortListen = 443;
+        config.httpPortListen = 8080;
+        config.httpsPortListen = 8443;
         config.found = false;
         Logger::log("Config file not found", 1);
         return config;
     }
+
     config.found = true;
-    std::cout << "Config file found!" << std::endl;
     std::string line, word;
     while (std::getline(file, line)) {
         if (!line.empty() && line.back() == '\r')

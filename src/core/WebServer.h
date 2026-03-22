@@ -10,6 +10,7 @@
 #include "../network/connections/Connection.h"
 #include "ThreadPool.h"
 #include "../network/SSLContext.h"
+#include "../network/socket/SocketFactory.h"
 
 class WebServer {
 private:
@@ -25,22 +26,16 @@ private:
     std::atomic<bool> isRunning;
 
 
-    void cleanupServer() const;
-    void createListenSocket(int& ListenSocket, const std::string& port);
-
-    //? IDE recommended
-    [[nodiscard]] int createClientSocket(int socket) const;
-
-    void createClientThread(std::unique_ptr<Connection> client);
     void consoleInput();
-
-    void serveStatic(std::string &url, Connection &client);
-    void connectionHandle(ThreadPool& pool, std::vector<epoll_event> &events);
+    void connectionHandle(ThreadPool& pool, std::vector<epoll_event> &events, SocketFactory &factory);
 
     void addToEpoll(int socket) const;
 
 public:
-    WebServer(const std::string& path);
+    WebServer(const std::string& path, SocketFactory& factory);
     ~WebServer();
-    void startListen();
+    void startListen(SocketFactory &factory);
+
+    void serveStatic(std::string &url, Connection &client);
+    void createClientThread(std::unique_ptr<Connection> client);
 };
