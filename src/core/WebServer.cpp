@@ -23,19 +23,19 @@
 #include "../network/connections/Connection.h"
 #include "../network/connections/HttpConnection.h"
 #include "../network/connections/HttpsConnection.h"
+#include "../network/socket/SocketFactory.h"
 
 //Might need to update to have path to config ?!?!?
 //Might need to clean up the constructor. This is ugly asl
-WebServer::WebServer(const std::string &pathConf) : serverConfig(ServerConfig::parseConfig(pathConf)), context(serverConfig) {
-
+WebServer::WebServer(const std::string &pathConf, SocketFactory &factory) : serverConfig(ServerConfig::parseConfig(pathConf)), context(serverConfig) {
 	try {
-		createListenSocket(HttpListenSocket, "8080");
+		HttpListenSocket = factory.createListenSocket(std::to_string(serverConfig.httpPortListen));
 	}catch (std::exception& e) {
 		Logger::log("Failed to create HTTP listen socket: " + std::string(e.what()), errno);
 	}
 	if (context.get() != nullptr) {
 		try {
-			createListenSocket(HttpsListenSocket, "8443");
+			HttpsListenSocket = factory.createListenSocket("8443");
 		}
 		catch (std::exception& e) {
 			std::cerr << "Failed to create HTTPS listen socket: " << e.what() << std::endl;
@@ -53,63 +53,6 @@ WebServer::~WebServer() {
 	close(HttpListenSocket);
 }
 
-
-void WebServer::cleanupServer() const{
-    if (HttpsListenSocket != -2) close(HttpsListenSocket);
-	close(HttpListenSocket);
-    exit(1);
-}
-
-void WebServer::createListenSocket(int& ListenSocket,const std::string& port) {
-	struct addrinfo hints, *res;
-
-	memset(&hints, 0, sizeof(hints));
-	hints.ai_family = AF_INET;
-	hints.ai_socktype = SOCK_STREAM;
-	hints.ai_protocol = IPPROTO_TCP;
-	hints.ai_flags = AI_PASSIVE;
-
-	int result = getaddrinfo(NULL, port.c_str(), &hints, &res);
-	if (result != 0) {
-		Logger::log("getaddrinfo failed:", result);
-		cleanupServer();
-	}
-	//set socket
-	int opt = 1;
-	ListenSocket = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
-	if (ListenSocket == -1) {
-		Logger::log("Error: Failed to create listening socket: ", errno);
-		cleanupServer();
-	}
-	setsockopt(ListenSocket, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
-	//bind
-	int listenResult = bind(ListenSocket, res->ai_addr, (int)res->ai_addrlen);
-	if (listenResult == -1)	{
-		std::printf("bind failed: %s\n", strerror(errno));
-		Logger::log("Error: Failed to bind listening socket: ", errno);
-		freeaddrinfo(res);
-		cleanupServer();
-	}
-	freeaddrinfo(res);
-	//listen
-	if (listen(ListenSocket, SOMAXCONN) == -1) {
-		Logger::log("Error: Failed to listen on socket: ", errno);
-		cleanupServer();
-		return (void)0;
-	}
-	unsigned long mode = 1;
-	ioctl(ListenSocket, FIONBIO, &mode);
-
-}
-int WebServer::createClientSocket(int socket) const {
-	//make client socket
-	int Client;
-	Client = accept(socket, NULL, NULL);
-	if (Client == -1 && errno != EWOULDBLOCK) {
-		Logger::log("Error: Failed to accept incoming connection: ", errno);
-	}
-	return Client;
-}
 //console function so program doesnt need to crash to exit
 void WebServer::consoleInput() {
 	std::string input;
@@ -123,7 +66,6 @@ void WebServer::consoleInput() {
 void WebServer::serveStatic(std::string &url, Connection& client) {
 	std::string file = StaticResourceManager::getUrlPath(url);
 	StaticResourceManager::Response response = StaticResourceManager::getSite(file);
-
 
 	ssize_t staticResult = client.write(response.header.c_str(), response.header.size());
 	if (staticResult == -1)
@@ -144,8 +86,8 @@ void WebServer::createClientThread(std::unique_ptr<Connection> client) {
 		//recvbuf[clientResult] = '\0';
 		std::string request(recvbuf, clientResult);
 
-		size_t first = request.find(" ");
-		size_t second = request.find(" ", first + 1);
+		size_t first = request.find(' ');
+		size_t second = request.find(' ', first + 1);
 
 		if (first != std::string::npos && second != std::string::npos) {
 			std::string url = request.substr(first + 1, second - first - 1);
@@ -167,8 +109,8 @@ void WebServer::createClientThread(std::unique_ptr<Connection> client) {
 
 }
 
-void WebServer::startListen() {
-	Logger::log("So based, I kneel...", 0);
+void WebServer::startListen(SocketFactory &factory) {
+	//Logger::log("So based, I kneel...", 0);
 	//listenToClients
 	isRunning = true;
 	std::thread t(&WebServer::consoleInput, this);
@@ -181,13 +123,13 @@ void WebServer::startListen() {
 
 	std::vector<epoll_event> events(64);
 	do {
-		connectionHandle(pool, events);
+		connectionHandle(pool, events, factory);
 	} while (isRunning.load());
 	t.join();
 	
 }
 
-void WebServer::addToEpoll(int socket) {
+void WebServer::addToEpoll(int socket) const {
 	epoll_event event{};
 	event.events = EPOLLIN;
 	event.data.fd = socket;
@@ -196,13 +138,19 @@ void WebServer::addToEpoll(int socket) {
 	}
 }
 
-void WebServer::connectionHandle(ThreadPool &pool, std::vector<epoll_event> &events) {
+void WebServer::connectionHandle(ThreadPool &pool, std::vector<epoll_event> &events,  SocketFactory &factory) {
 	int n = epoll_wait(epollFd, events.data(), events.size(), -1);
 	for (int i = 0; i < n; i++) {
 		int fd = events[i].data.fd;
+		int clientSocket = 0;
 
 		if (fd == HttpListenSocket) {
-			int clientSocket = createClientSocket(HttpListenSocket);
+			try {
+				clientSocket = factory.createClientSocket(HttpListenSocket);
+			}catch (std::exception& e) {
+				Logger::log("Error creating client socket: ", errno);
+			}
+
 			if (clientSocket != -1) {
 				pool.submit([this, clientSocket]() {
 					std::unique_ptr<Connection> conn = std::make_unique<HttpConnection>(clientSocket);
@@ -216,7 +164,12 @@ void WebServer::connectionHandle(ThreadPool &pool, std::vector<epoll_event> &eve
 			}
 		}
 		if (fd == HttpsListenSocket && HttpsListenSocket != -2) {
-			int clientSocket = createClientSocket(HttpsListenSocket);
+			try {
+				clientSocket = factory.createClientSocket(HttpsListenSocket);
+			}catch (const std::exception& e) {
+				Logger::log("Faled to creating client socket", errno);
+			}
+
 			if (clientSocket != -1) {
 				pool.submit([this, clientSocket]() {
 					try {

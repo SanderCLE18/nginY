@@ -28,8 +28,11 @@ public:
     };
     void shutdown(std::optional<int> how) override {
         if (!how.has_value()) {
-            ::shutdown(this->fd, -1);
+            ::shutdown(this->fd, 0);
         }
-        ::shutdown(this->fd, how.value());
+        else {
+            ::shutdown(this->fd, how.value());
+        }
+
     }
 };
