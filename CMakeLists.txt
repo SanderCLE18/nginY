@@ -31,6 +31,7 @@ set(SOURCES
         src/utils/FileReader.h
         src/network/socket/SocketFactory.h
         src/network/socket/PosixSocketFactory.h
+        tests/network/socket/test_PosixSocketFactory.cpp
 )
 
 # Executable
@@ -79,6 +80,7 @@ add_executable(nginY_tests
         tests/network/connections/gTestConnection.cpp
         tests/network/connections/gTestConnectionParser.h
         tests/network/socket/GTestSocketFactory.h
+        tests/network/socket/test_PosixSocketFactory.cpp
         tests/core/test_WebServer.cpp
 )
 target_include_directories(nginY_tests PRIVATE
