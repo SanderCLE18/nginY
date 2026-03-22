@@ -7,7 +7,7 @@
 #include <network/socket/SocketFactory.h>
 
 
-class GTestSocketFactory : public SocketFactory {
+class gTestSocketFactory : public SocketFactory {
 
 public:
     MOCK_METHOD(int, createListenSocket, (const std::string& port), (override));

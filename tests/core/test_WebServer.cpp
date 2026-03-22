@@ -4,7 +4,7 @@
 
 #include <gtest/gtest.h>
 #include <string>
-#include <../tests/network/socket/GTestSocketFactory.h>
+#include <../tests/network/socket/gTestSocketFactory.h>
 #include "core/WebServer.h"
 #include <../tests/network/connections/gTestConnection.cpp>
 
@@ -16,7 +16,7 @@ friend class WebServer;
 
 protected:
     std::unique_ptr<WebServer> server;
-    GTestSocketFactory factory;
+    gTestSocketFactory factory;
 public:
     void SetUp() override {
         EXPECT_CALL(factory, createListenSocket(_))
