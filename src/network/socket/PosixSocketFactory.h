@@ -8,7 +8,7 @@
 #include <stdexcept>
 #include <string>
 #include <sys/ioctl.h>
-
+#include <unistd.h>
 #include "SocketFactory.h"
 
 class PosixSocketFactory : public SocketFactory {

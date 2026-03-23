@@ -31,7 +31,6 @@ set(SOURCES
         src/utils/FileReader.h
         src/network/socket/SocketFactory.h
         src/network/socket/PosixSocketFactory.h
-        tests/network/socket/test_PosixSocketFactory.cpp
 )
 
 # Executable
@@ -71,6 +70,12 @@ add_library(nginY_lib
         src/network/SSLContext.h
         src/network/socket/SocketFactory.h
         src/network/socket/PosixSocketFactory.h
+
+)
+
+target_link_libraries(nginY_lib PRIVATE
+        OpenSSL::Crypto
+        OpenSSL::SSL
 )
 
 enable_testing()
@@ -87,12 +92,11 @@ target_include_directories(nginY_tests PRIVATE
         ${CMAKE_SOURCE_DIR}/src
 )
 target_link_libraries(nginY_tests PRIVATE
-        nginY_lib
         GTest::gtest
         GTest::gtest_main
         GTest::gmock_main
-        OpenSSL::Crypto
-        OpenSSL::SSL
+        pthread
+        nginY_lib
 )
 include(GoogleTest)
 gtest_discover_tests(nginY_tests)

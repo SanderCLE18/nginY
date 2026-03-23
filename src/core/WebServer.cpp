@@ -25,167 +25,157 @@
 #include "../network/connections/HttpsConnection.h"
 #include "../network/socket/SocketFactory.h"
 
-//Might need to update to have path to config ?!?!?
-//Might need to clean up the constructor. This is ugly asl
-WebServer::WebServer(const std::string &pathConf, SocketFactory &factory) : serverConfig(ServerConfig::parseConfig(pathConf)), context(serverConfig) {
-	try {
-		HttpListenSocket = factory.createListenSocket(std::to_string(serverConfig.httpPortListen));
-	}catch (std::exception& e) {
-		Logger::log("Failed to create HTTP listen socket: " + std::string(e.what()), errno);
-	}
-	if (context.get() != nullptr) {
-		try {
-			HttpsListenSocket = factory.createListenSocket("8443");
-		}
-		catch (std::exception& e) {
-			std::cerr << "Failed to create HTTPS listen socket: " << e.what() << std::endl;
-			HttpsListenSocket = -2;
-		}
-	}
-	else {
-		HttpsListenSocket = -2;
-		std::cout << "HTTPS not supported" << std::endl;
-	}
+WebServer::WebServer(const std::string &pathConf, SocketFactory &factory) : serverConfig(
+                                                                                ServerConfig::parseConfig(pathConf)),
+                                                                            context(serverConfig) {
+    try {
+        HttpListenSocket = factory.createListenSocket(std::to_string(serverConfig.httpPortListen));
+    } catch (std::exception &e) {
+        Logger::log("Failed to create HTTP listen socket: " + std::string(e.what()), errno);
+    }
+    if (context.get() != nullptr) {
+        try {
+            HttpsListenSocket = factory.createListenSocket("8443");
+        } catch (std::exception &e) {
+            std::cerr << "Failed to create HTTPS listen socket: " << e.what() << std::endl;
+            HttpsListenSocket = -2;
+        }
+    } else {
+        HttpsListenSocket = -2;
+        std::cout << "HTTPS not supported" << std::endl;
+    }
 }
 
 WebServer::~WebServer() {
     close(HttpsListenSocket);
-	close(HttpListenSocket);
+    close(HttpListenSocket);
 }
 
-//console function so program doesnt need to crash to exit
 void WebServer::consoleInput() {
-	std::string input;
-	while (input != "exit"){
-		std::getline(std::cin, input);
-	}
-	this->isRunning = false;
+    std::string input;
+    while (input != "exit") {
+        std::getline(std::cin, input);
+    }
+    this->isRunning = false;
 }
 
-//Defining static as its own method. Think it makes the method createClientThread easier to read
-void WebServer::serveStatic(std::string &url, Connection& client) {
-	std::string file = StaticResourceManager::getUrlPath(url);
-	StaticResourceManager::Response response = StaticResourceManager::getSite(file);
+void WebServer::serveStatic(std::string &url, Connection &client) {
+    std::string file = StaticResourceManager::getUrlPath(url);
+    StaticResourceManager::Response response = StaticResourceManager::getSite(file);
 
-	ssize_t staticResult = client.write(response.header.c_str(), response.header.size());
-	if (staticResult == -1)
-		Logger::log("Sending header failed", errno);
+    ssize_t staticResult = client.write(response.header.c_str(), response.header.size());
+    if (staticResult == -1)
+        Logger::log("Sending header failed", errno);
 
-	if (response.found) {
-		staticResult = client.write(response.content.data(), response.content.size());
-		if (staticResult == -1)
-			Logger::log("Sending content failed", errno);
-	}
+    if (response.found) {
+        staticResult = client.write(response.content.data(), response.content.size());
+        if (staticResult == -1)
+            Logger::log("Sending content failed", errno);
+    }
 }
-//Worker thread to handle multiple connections at once
+
 void WebServer::createClientThread(std::unique_ptr<Connection> client) {
-	char recvbuf[8192];
-	int clientResult = client->read(recvbuf, sizeof(recvbuf) - 1);
-	if (clientResult > 0) {
-		printf("Bytes received: %d\n", clientResult);
-		//recvbuf[clientResult] = '\0';
-		std::string request(recvbuf, clientResult);
+    char recvbuf[8192];
+    int clientResult = client->read(recvbuf, sizeof(recvbuf) - 1);
+    if (clientResult > 0) {
+        printf("Bytes received: %d\n", clientResult);
+        //recvbuf[clientResult] = '\0';
+        std::string request(recvbuf, clientResult);
 
-		size_t first = request.find(' ');
-		size_t second = request.find(' ', first + 1);
+        size_t first = request.find(' ');
+        size_t second = request.find(' ', first + 1);
 
-		if (first != std::string::npos && second != std::string::npos) {
-			std::string url = request.substr(first + 1, second - first - 1);
+        if (first != std::string::npos && second != std::string::npos) {
+            std::string url = request.substr(first + 1, second - first - 1);
 
-			if (url.starts_with("/api/")) {
-				ProxyConnection connection(*client, request, url, serverConfig);
-			}
-			else {
-				serveStatic(url, *client);
-			}
-
-		}
-	}
-	else {
-		Logger::log("Error with recv:", errno);
-	}
-	client->shutdown(SHUT_WR);
-	client->close();
-
+            if (url.starts_with("/api/")) {
+                ProxyConnection connection(*client, request, url, serverConfig);
+            } else {
+                serveStatic(url, *client);
+            }
+        }
+    } else {
+        Logger::log("Error with recv:", errno);
+    }
+    client->shutdown(SHUT_WR);
+    client->close();
 }
 
 void WebServer::startListen(SocketFactory &factory) {
-	//Logger::log("So based, I kneel...", 0);
-	//listenToClients
-	isRunning = true;
-	std::thread t(&WebServer::consoleInput, this);
+    //Logger::log("So based, I kneel...", 0);
+    //listenToClients
+    isRunning = true;
+    std::thread t(&WebServer::consoleInput, this);
 
-	ThreadPool pool(8);
-	epollFd = epoll_create1(0);
+    ThreadPool pool(8);
+    epollFd = epoll_create1(0);
 
-	addToEpoll(HttpListenSocket);
-	if (HttpsListenSocket != -2) addToEpoll(HttpsListenSocket);
+    addToEpoll(HttpListenSocket);
+    if (HttpsListenSocket != -2) addToEpoll(HttpsListenSocket);
 
-	std::vector<epoll_event> events(64);
-	do {
-		connectionHandle(pool, events, factory);
-	} while (isRunning.load());
-	t.join();
-	
+    std::vector<epoll_event> events(64);
+    do {
+        connectionHandle(pool, events, factory);
+    } while (isRunning.load());
+    t.join();
 }
 
 void WebServer::addToEpoll(int socket) const {
-	epoll_event event{};
-	event.events = EPOLLIN;
-	event.data.fd = socket;
-	if (epoll_ctl(epollFd, EPOLL_CTL_ADD, socket, &event) == -1) {
-		Logger::log("Error adding socket to epoll:", errno);
-	}
+    epoll_event event{};
+    event.events = EPOLLIN;
+    event.data.fd = socket;
+    if (epoll_ctl(epollFd, EPOLL_CTL_ADD, socket, &event) == -1) {
+        Logger::log("Error adding socket to epoll:", errno);
+    }
 }
 
-void WebServer::connectionHandle(ThreadPool &pool, std::vector<epoll_event> &events,  SocketFactory &factory) {
-	int n = epoll_wait(epollFd, events.data(), events.size(), -1);
-	for (int i = 0; i < n; i++) {
-		int fd = events[i].data.fd;
-		int clientSocket = 0;
+void WebServer::connectionHandle(ThreadPool &pool, std::vector<epoll_event> &events, SocketFactory &factory) {
+    int n = epoll_wait(epollFd, events.data(), events.size(), -1);
+    for (int i = 0; i < n; i++) {
+        int fd = events[i].data.fd;
+        int clientSocket = 0;
 
-		if (fd == HttpListenSocket) {
-			try {
-				clientSocket = factory.createClientSocket(HttpListenSocket);
-			}catch (std::exception& e) {
-				Logger::log("Error creating client socket: ", errno);
-			}
+        if (fd == HttpListenSocket) {
+            try {
+                clientSocket = factory.createClientSocket(HttpListenSocket);
+            } catch (std::exception &e) {
+                Logger::log("Error creating client socket: ", errno);
+            }
 
-			if (clientSocket != -1) {
-				pool.submit([this, clientSocket]() {
-					std::unique_ptr<Connection> conn = std::make_unique<HttpConnection>(clientSocket);
-					createClientThread(std::move(conn));
-				});
-			} else {
-				int error = errno;
-				if (error != EWOULDBLOCK) {
-					Logger::log("Error in main listening loop: ", error);
-				}
-			}
-		}
-		if (fd == HttpsListenSocket && HttpsListenSocket != -2) {
-			try {
-				clientSocket = factory.createClientSocket(HttpsListenSocket);
-			}catch (const std::exception& e) {
-				Logger::log("Faled to creating client socket", errno);
-			}
+            if (clientSocket != -1) {
+                pool.submit([this, clientSocket]() {
+                    std::unique_ptr<Connection> conn = std::make_unique<HttpConnection>(clientSocket);
+                    createClientThread(std::move(conn));
+                });
+            } else {
+                int error = errno;
+                if (error != EWOULDBLOCK) {
+                    Logger::log("Error in main listening loop: ", error);
+                }
+            }
+        }
+        if (fd == HttpsListenSocket && HttpsListenSocket != -2) {
+            try {
+                clientSocket = factory.createClientSocket(HttpsListenSocket);
+            } catch (const std::exception &e) {
+                Logger::log("Faled to creating client socket", errno);
+            }
 
-			if (clientSocket != -1) {
-				pool.submit([this, clientSocket]() {
-					try {
-						auto connection = std::make_unique<HttpsConnection>(clientSocket, context.get());
-						createClientThread(std::move(connection));
-					}catch (std::exception& e) {
-						Logger::log("Failed to create HTTPS connection: " + std::string(e.what()), errno);
-					}
-				});
-			} else {
-				int error = errno;
-				if (error != EWOULDBLOCK) {
-					Logger::log("Error in main listening loop: ", error);
-				}
-			}
-		}
-	}
+            if (clientSocket != -1) {
+                pool.submit([this, clientSocket]() {
+                    try {
+                        auto connection = std::make_unique<HttpsConnection>(clientSocket, context.get());
+                        createClientThread(std::move(connection));
+                    } catch (std::exception &e) {
+                        Logger::log("Failed to create HTTPS connection: " + std::string(e.what()), errno);
+                    }
+                });
+            } else {
+                int error = errno;
+                if (error != EWOULDBLOCK) {
+                    Logger::log("Error in main listening loop: ", error);
+                }
+            }
+        }
+    }
 }
-
