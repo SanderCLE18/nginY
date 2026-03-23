@@ -10,12 +10,28 @@
 
 class ThreadPool {
 private:
+    /**
+     * @brief Active threads
+     */
     std::vector<std::thread> threads;
+    /**
+     * @brief Mutex object
+     */
     std::mutex mutex;
 
+    /**
+     * @brief Queue of tasks
+     */
     std::queue<std::function<void()> > tasks;
+
+    /**
+     * @brief Condition variable for signaling tasks
+     */
     std::condition_variable condition;
 
+    /**
+     * @brief Boolean flag indicating if the thread pool is running
+     */
     bool running;
 
 public:

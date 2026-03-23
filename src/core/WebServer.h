@@ -14,25 +14,53 @@
 
 class WebServer {
 private:
+    /**
+     * @brief Server configuration
+     */
     ServerConfig::Config serverConfig;
+
+    /**
+     * @brief Saved SSL context
+     */
     SSLContext context;
 
+    /**
+     * @brief Epoll file descriptor
+     */
     int epollFd;
 
+    /**
+     * @brief Socket designated for the HTTP server
+     */
     int HttpListenSocket;
+
+    /**
+     * @brief Socket designated for the HTTPS server
+     */
     int HttpsListenSocket;
 
-    int sendResult;
+    /**
+     * @brief Atomic boolean flag indicating whether the server is running or not
+     */
     std::atomic<bool> isRunning;
 
     /**
-    * Console input for running "commands" ((just 'exit' is implemented (poorly)))  in the console while the server is running.
+    * @brief Console input for running "commands" ((just 'exit' is implemented (poorly)))  in the console while the server is running.
     */
     void consoleInput();
 
+    /**
+     * @brief Delegates an incoming connection to a thread pool for handling
+     * * When handled, the incoming conncetion will be sent to a client socket for further communication.
+     *
+     * @param pool Reference to thread pool
+     * @param events Reference to epoll events
+     * @param factory Reference to socket factory
+     */
     void connectionHandle(ThreadPool &pool, std::vector<epoll_event> &events, SocketFactory &factory);
 
     /**
+    * @brief Adds a socket to the epoll instance
     *
     * @param socket socket
     */
@@ -44,15 +72,15 @@ public:
     ~WebServer();
 
     /**
-    * "Main" loop for handling client connections.
-    * Creates a thread pool and handles client connections using epoll.
+    * @brief "Main" loop for handling client connections.
+    * * Creates a thread pool and handles client connections using epoll.
     *
     * @param factory reference to a socket factory
     */
     void startListen(SocketFactory &factory);
 
     /**
-     * Serves static files (.html, .css, .js, etc.) to client
+     * @brief Serves static files (.html, .css, .js, etc.) to client
      *
      * @param url reference to url string
      * @param client reference to client connection

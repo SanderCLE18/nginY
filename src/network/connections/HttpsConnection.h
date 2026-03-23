@@ -11,9 +11,22 @@
 
 class HttpsConnection : public Connection {
 private:
+    /**
+     * @brief Pointer to the SSL structure.
+     */
     SSL* ssl;
 
 public:
+
+    /**
+     * @brief Constructor for the HTTPS connections.
+     * * The constructor initializes the SSL connection with the provided socket and SSL context.
+     * * This does also handle the redirection to HTTPS if necessary.
+     *
+     * @param socket The socket to be used for the connection
+     * @param ctx Pointer to the SSL context
+     * @throw std::runtime_error if the connection fails
+     */
     HttpsConnection(int socket, SSL_CTX* ctx) {
         this->fd = socket;
         this->ssl = SSL_new(ctx);
@@ -48,7 +61,7 @@ public:
     }
 
     /**
-     * Tells the client to move to the active page
+     * @brief Tells the client to move to the active HTTPS page
      *
      * @param socket incoming socket
      */
@@ -70,23 +83,45 @@ public:
 
         send(socket, header.data(), header.size(), 0);
     }
+
+    /**
+     * @brief Reads from a connection using the openSSL library
+     *
+     * @param buf Pointer to the buffer to read from
+     * @param len Length of the buffer
+     * @return Number of bytes read
+     */
     ssize_t read(void *buf, size_t len) override {
         return SSL_read(ssl, buf, len);
     }
+
+    /**
+     * @brief Writes data to a connection using the openSSL library
+     *
+     * @param buf Pointer to the buffer to be written in
+     * @param len Number of bytes to write
+     * @return Actual number of written bytes
+     */
     ssize_t write(const void* buf, size_t len) override {
         return SSL_write(ssl, buf, len);
     }
 
+    /**
+     * @brief Peeks into the received message and checks if it is HTTP
+     *
+     * @param socket
+     * @return True if the first byte is not TLS, otherwise false.
+     */
     bool isHttp(int socket) {
         char probe;
         int n = recv(socket, &probe, 1, MSG_PEEK);
-        toupper(probe);
-        if (n > 0 && (probe == 'H' || probe == 'P' || probe == 'G' || probe == 'D')) {
-            return true;
-        }
-        return false;
+
+        return probe != 0x16;
     }
 
+    /**
+     * @brief closes the connection.
+     */
     void close() override {
         if (this->ssl) {
 
@@ -100,6 +135,12 @@ public:
             this->fd = -1;
         }
     }
+
+    /**
+     * @brief shuts down the connection.
+     *
+     * @param how unused value
+     */
     void shutdown(std::optional<int> how) override {
         int placeholder = how.value();
         int ret = SSL_shutdown(ssl);
@@ -108,4 +149,21 @@ public:
             SSL_shutdown(ssl);
         }
     }
+
+    /**
+    * @brief Sets the connection to either blocking or non-blocking mode
+    *
+    * @param blocking If true, connections will block
+    */
+    void setBlocking(bool blocking) const {
+        unsigned long mode = blocking ? 0 : 1;
+        ioctl(fd, FIONBIO, &mode);
+    }
+
+protected:
+
+    /**
+     * @brief File descriptor for the connection
+     */
+    int fd;
 };

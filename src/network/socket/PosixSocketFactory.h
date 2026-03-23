@@ -4,6 +4,7 @@
 
 #pragma once
 #include <cstring>
+#include <fcntl.h>
 #include <netdb.h>
 #include <stdexcept>
 #include <string>
@@ -11,13 +12,41 @@
 #include <unistd.h>
 #include "SocketFactory.h"
 
+/**
+ * @brief Factory for creating POSIX sockets.
+ * This class provides a concrete implementation of the SocketFactory
+ * interface using the POSIX socket API
+ *
+ */
 class PosixSocketFactory : public SocketFactory {
 public:
+    /**
+     * @brief Creates a listening socket for the given port.
+     *
+     * @param port reference to the port string
+     * @return file descriptor
+     */
     int createListenSocket(const std::string& port) override;
+
+    /**
+     * @brief Creates a listening socket for the given port.
+     *
+     * @param host reference to the host string, host for getaddrinfo
+     * @param port reference to the port string
+     * @return file descriptor
+     */
+    int createListenSocket(const std::string& host, const std::string& port);
+
+    /**
+     * @brief Creates a client socket for the given socket.
+     *
+     * @param socket reference to the socket
+     * @return file descriptor
+     */
     int createClientSocket(int socket) override;
 };
 
-inline int PosixSocketFactory::createListenSocket(const std::string& port) {
+inline int PosixSocketFactory::createListenSocket(const std::string& host, const std::string& port) {
     struct addrinfo hints, *res;
 
     memset(&hints, 0, sizeof(hints));
@@ -26,7 +55,9 @@ inline int PosixSocketFactory::createListenSocket(const std::string& port) {
     hints.ai_protocol = IPPROTO_TCP;
     hints.ai_flags = AI_PASSIVE;
 
-    int result = getaddrinfo(nullptr, port.c_str(), &hints, &res);
+    const char* host_ptr = host.empty() ? nullptr : host.c_str();
+    int result = getaddrinfo(host_ptr, port.c_str(), &hints, &res);
+
     if (result != 0) {
         throw std::runtime_error("getaddrinfo failed: " + std::to_string(result));
     }
@@ -51,9 +82,12 @@ inline int PosixSocketFactory::createListenSocket(const std::string& port) {
         throw std::runtime_error("Error: Failed to listen on socket: " + std::to_string(errno));
     }
     unsigned long mode = 1;
-    ioctl(ListenSocket, FIONBIO, &mode);
+    fcntl(ListenSocket, F_SETFL, O_NONBLOCK);
 
     return ListenSocket;
+}
+inline int PosixSocketFactory::createListenSocket(const std::string& port) {
+    return createListenSocket("", port);
 }
 inline int PosixSocketFactory::createClientSocket(int socket) {
     //make client socket

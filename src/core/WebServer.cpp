@@ -25,9 +25,10 @@
 #include "../network/connections/HttpsConnection.h"
 #include "../network/socket/SocketFactory.h"
 
-WebServer::WebServer(const std::string &pathConf, SocketFactory &factory) : serverConfig(
-                                                                                ServerConfig::parseConfig(pathConf)),
-                                                                            context(serverConfig) {
+WebServer::WebServer(const std::string &pathConf, SocketFactory &factory) :
+    serverConfig(ServerConfig::parseConfig(pathConf)),
+    context(serverConfig)
+{
     try {
         HttpListenSocket = factory.createListenSocket(std::to_string(serverConfig.httpPortListen));
     } catch (std::exception &e) {

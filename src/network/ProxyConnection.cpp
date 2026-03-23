@@ -11,7 +11,7 @@
 
 #include "../utils/StaticResourceManager.h"
 #include "connections/Connection.h"
-
+#include "socket/PosixSocketFactory.h"
 
 
 ProxyConnection::ProxyConnection(Connection& client, std::string request, std::string url, const ServerConfig::Config& config) : client(client) {
@@ -43,7 +43,10 @@ void ProxyConnection::newConnection() {
 
 void ProxyConnection::forwardRequest(const std::string& host, const std::string& port) {
 
-	int backendSocket = createSocket(host, port);
+	//Ultrataktisk factory.
+	PosixSocketFactory posixSocketFactory;
+
+	int backendSocket = posixSocketFactory.createListenSocket(host, port);
 
 	if (backendSocket == -1) return;
 
@@ -92,32 +95,3 @@ void ProxyConnection::forwardRequest(const std::string& host, const std::string&
 	close(backendSocket);
 }
 
-int ProxyConnection::createSocket(const std::string& host, const std::string& port) {
-	//Opens new socket for backend service.
-	struct addrinfo hints, *res;
-	memset(&hints, 0, sizeof(hints));
-	hints.ai_family = AF_UNSPEC;
-	hints.ai_socktype = SOCK_STREAM;
-
-	int proxyAddr = getaddrinfo(host.c_str(), port.c_str(), &hints, &res);
-
-	if (proxyAddr != 0) {
-		Logger::log("Error: Failed to get address info: ", proxyAddr);
-		return -1;
-	}
-	int backendSocket = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
-	if (backendSocket == -1) {
-		Logger::log("Error: Failed to create backend socket: ", errno);
-		freeaddrinfo(res);
-		return -1;
-	}
-	if (connect(backendSocket, res->ai_addr, res->ai_addrlen) == -1) {
-		Logger::log("Error: Failed to connect to backend: ", errno);
-		freeaddrinfo(res);
-		close(backendSocket);
-		return -1;
-	}
-
-	freeaddrinfo(res);
-	return backendSocket;
-}
