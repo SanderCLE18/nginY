@@ -25,10 +25,9 @@
 #include "../network/connections/HttpsConnection.h"
 #include "../network/socket/SocketFactory.h"
 
-WebServer::WebServer(const std::string &pathConf, SocketFactory &factory) :
-    serverConfig(ServerConfig::parseConfig(pathConf)),
-    context(serverConfig)
-{
+WebServer::WebServer(const std::string &pathConf, SocketFactory &factory) : serverConfig(
+                                                                                ServerConfig::parseConfig(pathConf)),
+                                                                            context(serverConfig) {
     try {
         HttpListenSocket = factory.createListenSocket(std::to_string(serverConfig.httpPortListen));
     } catch (std::exception &e) {
@@ -36,7 +35,7 @@ WebServer::WebServer(const std::string &pathConf, SocketFactory &factory) :
     }
     if (context.get() != nullptr) {
         try {
-            HttpsListenSocket = factory.createListenSocket("8443");
+            HttpsListenSocket = factory.createListenSocket(std::to_string(serverConfig.httpsPortListen));
         } catch (std::exception &e) {
             std::cerr << "Failed to create HTTPS listen socket: " << e.what() << std::endl;
             HttpsListenSocket = -2;
