@@ -5,8 +5,7 @@
 #include <gtest/gtest.h>
 
 #include "../../../src/network/socket/PosixSocketFactory.h"
-
-
+#include <unistd.h>
 
 TEST(PosixSocketFactoryTest, canCreateSocket) {
     PosixSocketFactory factory;

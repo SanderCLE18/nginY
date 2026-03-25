@@ -8,7 +8,6 @@
 #include "../utils/StaticResourceManager.h"
 
 int main() {
-
     std::string configPath = "config.conf";
     PosixSocketFactory posixFactory;
     WebServer server(configPath, posixFactory);
