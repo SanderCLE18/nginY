@@ -10,3 +10,4 @@ Installation:
 - Run the installation.sh script
 - Place websites in the /www/ folder
 - Update the config file to your liking. 
+- Run from build folder
