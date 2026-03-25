@@ -7,4 +7,6 @@ Pre-requisites.
 - CMake
 
 Installation: 
-- Run the installation.sh script 
+- Run the installation.sh script
+- Place websites in the /www/ folder
+- Update the config file to your liking. 
