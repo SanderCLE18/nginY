@@ -8,7 +8,7 @@
 #include "../utils/StaticResourceManager.h"
 
 int main() {
-    std::string configPath = "config.conf";
+    std::string configPath = "nginy.conf";
     PosixSocketFactory posixFactory;
     WebServer server(configPath, posixFactory);
     server.startListen(posixFactory);
