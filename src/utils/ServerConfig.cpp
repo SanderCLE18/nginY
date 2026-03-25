@@ -39,22 +39,17 @@ ServerConfig::Config ServerConfig::parseConfig(const std::string& path) {
 
         if (word == "httpsListen") {
             std::cout << "found listenHttps" << std::endl;
-            ss >> config.httpsPortListen;
         }
         else if (word == "httpListen") {
-            std::cout << "found listenHttp" << std::endl;
             ss >> config.httpPortListen;
         }
         else if (word == "ssl_password_file") {
-            std::cout << "found ssl_password_file" << std::endl;
             readValue(config.passPath);
         }
         else if (word == "ssl_certificate") {
-            std::cout << "found ssl_certificate" << std::endl;
             readValue(config.certPath);
         }
         else if (word == "ssl_certificate_key") {
-            std::cout << "found ssl_certificate_key" << std::endl;
             readValue(config.keyPath);
         }
         else if (word == "location") {
