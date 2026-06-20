@@ -19,7 +19,6 @@ class ServerConfig {
     static std::tuple<std::string, std::string> parseProxy(const std::string &value);
 
 public:
-    //Proxy rules!
     /**
      * @brief Structure that saves the different proxy rules
      */
@@ -31,16 +30,27 @@ public:
     };
 
     /**
+     * @brief Structure for managing different servers. Each gets its own rule vector and name.
+     *
+     */
+    struct VirtualHost {
+        std::vector<ProxyRules> content; ///< The host's rules.
+        std::string hostName;                ///< The host's name
+        std::string passPath;             ///< Path to the password file
+        std::string certPath;             ///< Path to the certificate file
+        std::string keyPath;              ///< Path ot the key file
+        int httpsPortListen;              ///< Https port
+        int httpPortListen;                ///< Http port
+    };
+
+    /**
      * @brief Structure that saves the different server settings
      */
     struct Config {
-        std::vector<ProxyRules> content; ///< Vector containing all the different proxy rules
-        std::string passPath;            ///< Path to the password file
-        std::string certPath;            ///< Path to the certificate file
-        std::string keyPath;             ///< Path ot the key file
-        int httpsPortListen;             ///< Https port
-        int httpPortListen;              ///< Http port
-        bool found;                      ///< Value signaling if the configuration file was found
+        std::vector<VirtualHost> content; ///< Vector containing all the different proxy rules
+        int httpsPortListen;              ///< Https port
+        int httpPortListen;               ///< Http port
+        bool found;                       ///< Value signaling if the configuration file was found
     };
 
     /**
@@ -50,4 +60,6 @@ public:
      * @return Returns a Config structure.
      */
     static Config parseConfig(const std::string &path);
+
+    static VirtualHost parseVirtualHost(std::ifstream &file);
 };

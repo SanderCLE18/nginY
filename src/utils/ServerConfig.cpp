@@ -26,11 +26,30 @@ ServerConfig::Config ServerConfig::parseConfig(const std::string& path) {
     config.found = true;
     std::string line, word;
     while (std::getline(file, line)) {
-        if (!line.empty() && line.back() == '\r')
+        if (!line.empty() && line.back() == '\r') {
             line.pop_back();
+        }
         word.clear();
         std::stringstream ss(line);
         ss >> word;
+        if (word == "server") {
+            config.content.push_back(parseVirtualHost(file));
+        }
+
+    }
+    file.close();
+    return config;
+}
+
+ServerConfig::VirtualHost ServerConfig::parseVirtualHost(std::ifstream& file) {
+    VirtualHost host;
+    std::string line;
+
+    while (std::getline(file, line) && line.find('}') == std::string::npos) {
+        std::stringstream ss(line);
+        std::string word;
+        ss >> word;
+
         auto readValue = [&](std::string& field) {
             ss >> field;
             if (!field.empty() && field.back() == ';')
@@ -38,19 +57,19 @@ ServerConfig::Config ServerConfig::parseConfig(const std::string& path) {
         };
 
         if (word == "httpsListen") {
-            std::cout << "found listenHttps" << std::endl;
+            ss >> host.httpsPortListen;
         }
         else if (word == "httpListen") {
-            ss >> config.httpPortListen;
+            ss >> host.httpPortListen;
         }
         else if (word == "ssl_password_file") {
-            readValue(config.passPath);
+            readValue(host.passPath);
         }
         else if (word == "ssl_certificate") {
-            readValue(config.certPath);
+            readValue(host.certPath);
         }
         else if (word == "ssl_certificate_key") {
-            readValue(config.keyPath);
+            readValue(host.keyPath);
         }
         else if (word == "location") {
             std::cout << "found location" << std::endl;
@@ -71,12 +90,12 @@ ServerConfig::Config ServerConfig::parseConfig(const std::string& path) {
                     rule.proxy = false;
                 }
             }
-            config.content.push_back(rule);
+            host.content.push_back(rule);
         }
     }
-    file.close();
-    return config;
+    return host;
 }
+
 std::tuple<std::string, std::string> ServerConfig::parseProxy(const std::string& value) {
     std::string target = value;
     std::string host;
