@@ -9,7 +9,7 @@
 #include "../utils/ServerConfig.h"
 #include "../network/connections/Connection.h"
 #include "ThreadPool.h"
-#include "../network/SSLContext.h"
+#include "../network/SNIContext.h"
 #include "../network/socket/SocketFactory.h"
 
 class WebServer {
@@ -22,7 +22,7 @@ private:
     /**
      * @brief Saved SSL context
      */
-    SSLContext context;
+    SNIContext sniContext_;
 
     /**
      * @brief Epoll file descriptor

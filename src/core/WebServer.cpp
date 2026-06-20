@@ -27,13 +27,13 @@
 
 WebServer::WebServer(const std::string &pathConf, SocketFactory &factory) : serverConfig(
                                                                                 ServerConfig::parseConfig(pathConf)),
-                                                                            context(serverConfig) {
+                                                                            sniContext_(serverConfig) {
     try {
         HttpListenSocket = factory.createListenSocket(std::to_string(serverConfig.httpPortListen));
     } catch (std::exception &e) {
         Logger::log("Failed to create HTTP listen socket: " + std::string(e.what()), errno);
     }
-    if (context.get() != nullptr) {
+    if (sniContext_.getDefault() != nullptr) {
         try {
             HttpsListenSocket = factory.createListenSocket(std::to_string(serverConfig.httpsPortListen));
         } catch (std::exception &e) {
@@ -87,11 +87,17 @@ void WebServer::createClientThread(std::unique_ptr<Connection> client) {
 
         if (first != std::string::npos && second != std::string::npos) {
             std::string url = request.substr(first + 1, second - first - 1);
-
-            if (url.starts_with("/api/")) {
-                ProxyConnection connection(*client, request, url, serverConfig);
-            } else {
-                serveStatic(url, *client);
+            size_t hostPos = request.find("Host: ");
+            if (hostPos == std::string::npos) {
+                Logger::log("No Host header in request", 1);
+                return;
+            }
+            size_t nextPos = request.find("\r\n", hostPos);
+            std::string host = request.substr(hostPos + 6, nextPos - (hostPos + 6) );
+            for (const auto& it : serverConfig.content) {
+                if (it.hostName == host) {
+                    ProxyConnection connection(*client, request, url, it);
+                }
             }
         }
     } else {
@@ -164,7 +170,7 @@ void WebServer::connectionHandle(ThreadPool &pool, std::vector<epoll_event> &eve
             if (clientSocket != -1) {
                 pool.submit([this, clientSocket]() {
                     try {
-                        auto connection = std::make_unique<HttpsConnection>(clientSocket, context.get());
+                        auto connection = std::make_unique<HttpsConnection>(clientSocket, sniContext_.getDefault());
                         createClientThread(std::move(connection));
                     } catch (std::exception &e) {
                         Logger::log("Failed to create HTTPS connection: " + std::string(e.what()), errno);

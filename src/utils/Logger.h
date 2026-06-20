@@ -27,18 +27,13 @@ private:
     static LinkedBlockingQueue<std::string> queue;
 
     /**
-     * @brief Stop token for signaling to the logger when it's time to stop.
-     */
-    static std::stop_token stopToken;
-
-    /**
      * @brief Logger constructor, starts a thread to process log messages
      */
     Logger() {
         std::atexit([]() {
             queue.cleanup();
         });
-        logThread = std::jthread([]() {
+        logThread = std::jthread([](std::stop_token st) {
             auto now = std::chrono::system_clock::now();
             auto in_time_t = std::chrono::system_clock::to_time_t(now);
             std::stringstream ss;
@@ -47,20 +42,21 @@ private:
 
             std::ofstream outFile(t_c + "_Log.txt", std::ios::app);
 
-            while (!stopToken.stop_requested()) {
+            while (!st.stop_requested()) {
                 auto item = queue.getListItem();
                 if (!item.has_value()) {
                     return;
                 }
 
-                outFile << item.value() << std::endl;
+                outFile << item.value() << "\n";
             }
             while (true) {
                 auto item = queue.tryGetListItem(); // non-blocking drain
-                if (!item.has_value()) break;
+                if (!item.has_value()) {
+                    break;
+                }
                 outFile << item.value() << "\n";
             }
-
             outFile.close();
         });
     }
@@ -75,11 +71,6 @@ public:
         static Logger logger;
         return logger;
     }
-
-    /**
-     * @brief Destructor for Logger class
-     */
-    ~Logger();
 
     /**
      * @brief Disallows the Logger class from being copied

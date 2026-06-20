@@ -31,6 +31,8 @@ set(SOURCES
         src/utils/FileReader.h
         src/network/socket/SocketFactory.h
         src/network/socket/PosixSocketFactory.h
+        src/network/SNIContext.cpp
+        src/network/SNIContext.h
 )
 
 # Executable

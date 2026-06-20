@@ -9,7 +9,6 @@
 
 std::jthread Logger::logThread;
 LinkedBlockingQueue<std::string> Logger::queue;
-std::stop_token Logger::stopToken;
 
 void Logger::log(const std::string &warning, int errorCode) {
 
@@ -28,6 +27,3 @@ void Logger::requestStop() {
     logThread.request_stop();
 }
 
-Logger::~Logger() {
-    queue.cleanup();
-}

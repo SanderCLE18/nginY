@@ -35,12 +35,10 @@ public:
      */
     struct VirtualHost {
         std::vector<ProxyRules> content; ///< The host's rules.
-        std::string hostName;                ///< The host's name
-        std::string passPath;             ///< Path to the password file
-        std::string certPath;             ///< Path to the certificate file
-        std::string keyPath;              ///< Path ot the key file
-        int httpsPortListen;              ///< Https port
-        int httpPortListen;                ///< Http port
+        std::string hostName;            ///< The host's name
+        std::string passPath;            ///< Path to the password file
+        std::string certPath;            ///< Path to the certificate file
+        std::string keyPath;             ///< Path to the key file
     };
 
     /**
@@ -61,5 +59,6 @@ public:
      */
     static Config parseConfig(const std::string &path);
 
+private:
     static VirtualHost parseVirtualHost(std::ifstream &file);
 };

@@ -14,10 +14,10 @@
 #include "socket/PosixSocketFactory.h"
 
 
-ProxyConnection::ProxyConnection(Connection& client, std::string request, std::string url, const ServerConfig::Config& config) : client(client) {
+ProxyConnection::ProxyConnection(Connection& client, std::string request, std::string url, const ServerConfig::VirtualHost& vhost) : client(client) {
 	this->request = std::move(request);
 	this->url = std::move(url);
-	this->config = config;
+	this->vhost = vhost;
 
 	newConnection();
 }
@@ -32,7 +32,7 @@ void ProxyConnection::newConnection() {
 
 	std::string type = request.substr(0, firstSpace);
 
-	for (const auto& proxy : config.content) {
+	for (const auto& proxy : vhost.content) {
 		if (proxy.location == url) {
 			forwardRequest(proxy.host, proxy.port);
 			return;

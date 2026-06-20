@@ -19,7 +19,7 @@ private:
 	/**
 	 * @brief Stored configuration for the proxy server.
 	 */
-	ServerConfig::Config config;
+	ServerConfig::VirtualHost vhost;
 
 	/**
 	 * @brief Reference to the client connection.
@@ -58,9 +58,9 @@ public:
 	 * @param client Reference to the client connection.
 	 * @param request the full request string received from the client.
 	 * @param url The destination of the request.
-	 * @param config The configuration for the proxy server.
+	 * @param vhost The configuration for the proxy server.
 	 */
-	ProxyConnection(Connection& client, std::string request, std::string url, const ServerConfig::Config& config);
+	ProxyConnection(Connection& client, std::string request, std::string url, const ServerConfig::VirtualHost& vhost);
 
 	/**
 	 * @brief Destructor for ProxyConnection.

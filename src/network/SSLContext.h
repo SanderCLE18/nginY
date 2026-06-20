@@ -24,9 +24,9 @@ public:
      * @brief Constructor for SSLContext.
      * Initializes SSL context with provided server configuration.
      *
-     * @param config reference to the server configuration
+     * @param host reference to the virtualhost configuration
      */
-    SSLContext(const ServerConfig::Config &config);
+    SSLContext(const ServerConfig::VirtualHost &host);
 
     /**
      * @brief Destructor for SSLContext.

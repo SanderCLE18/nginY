@@ -56,13 +56,7 @@ ServerConfig::VirtualHost ServerConfig::parseVirtualHost(std::ifstream& file) {
                 field.pop_back();
         };
 
-        if (word == "httpsListen") {
-            ss >> host.httpsPortListen;
-        }
-        else if (word == "httpListen") {
-            ss >> host.httpPortListen;
-        }
-        else if (word == "ssl_password_file") {
+        if (word == "ssl_password_file") {
             readValue(host.passPath);
         }
         else if (word == "ssl_certificate") {
@@ -70,6 +64,9 @@ ServerConfig::VirtualHost ServerConfig::parseVirtualHost(std::ifstream& file) {
         }
         else if (word == "ssl_certificate_key") {
             readValue(host.keyPath);
+        }
+        else if (word == "serverName") {
+            ss >> host.hostName;
         }
         else if (word == "location") {
             std::cout << "found location" << std::endl;
