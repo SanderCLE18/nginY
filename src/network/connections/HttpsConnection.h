@@ -114,7 +114,7 @@ public:
      */
     bool isHttp(int socket) {
         char probe;
-        int n = recv(socket, &probe, 1, MSG_PEEK);
+        recv(socket, &probe, 1, MSG_PEEK);
 
         return probe != 0x16;
     }
@@ -142,7 +142,7 @@ public:
      * @param how unused value
      */
     void shutdown(std::optional<int> how) override {
-        int placeholder = how.value();
+        how.value();
         int ret = SSL_shutdown(ssl);
 
         if (ret == 0) {

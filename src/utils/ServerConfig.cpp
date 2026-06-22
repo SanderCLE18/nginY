@@ -16,8 +16,6 @@ ServerConfig::Config ServerConfig::parseConfig(const std::string& path) {
     std::ifstream file(path);
 
     if (!file.is_open()) {
-        config.httpPortListen = 8080;
-        config.httpsPortListen = 8443;
         config.found = false;
         Logger::log("Config file not found", 1);
         return config;
@@ -56,7 +54,10 @@ ServerConfig::VirtualHost ServerConfig::parseVirtualHost(std::ifstream& file) {
                 field.pop_back();
         };
 
-        if (word == "ssl_password_file") {
+        if (word == "listen") {
+            parseListenPorts(line, host);
+        }
+        else if (word == "ssl_password_file") {
             readValue(host.passPath);
         }
         else if (word == "ssl_certificate") {
@@ -65,11 +66,10 @@ ServerConfig::VirtualHost ServerConfig::parseVirtualHost(std::ifstream& file) {
         else if (word == "ssl_certificate_key") {
             readValue(host.keyPath);
         }
-        else if (word == "serverName") {
-            ss >> host.hostName;
+        else if (word == "server_name") {
+            readValue(host.hostName);
         }
         else if (word == "location") {
-            std::cout << "found location" << std::endl;
             ProxyRules rule;
             ss >> rule.location;
             while (std::getline(file, line) && line.find('}') == std::string::npos) {
@@ -82,6 +82,7 @@ ServerConfig::VirtualHost ServerConfig::parseVirtualHost(std::ifstream& file) {
                     auto [host,port] = parseProxy(value);
                     rule.host = host;
                     rule.port = port;
+                    rule.proxy = true;
                 }
                 else if (key == "root") {
                     rule.proxy = false;
@@ -114,4 +115,35 @@ std::tuple<std::string, std::string> ServerConfig::parseProxy(const std::string&
         host = target;
     }
     return std::make_tuple(host, port);
+}
+
+void ServerConfig::parseListenPorts(std::string &line, VirtualHost &host) {
+    std::istringstream ss(line);
+    std::string word;
+
+    std::vector<int> ports;
+    bool isSSL = false;
+    ss >> word;
+
+    while (ss >> word) {
+        if (!word.empty() && word.back() == ';') {
+            word.pop_back();
+        }
+        if (word == "ssl") {
+            isSSL = true;
+            continue;
+        }
+        try {
+            ports.push_back(std::stoi(word));
+        } catch (std::exception& e) {
+            //Ignore
+        }
+    }
+    if (isSSL) {
+        host.httpsPort.insert(host.httpsPort.end(), ports.begin(), ports.end());
+    }
+    else {
+        host.httpPort.insert(host.httpPort.end(), ports.begin(), ports.end());
+    }
+
 }

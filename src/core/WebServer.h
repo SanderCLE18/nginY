@@ -4,6 +4,7 @@
 #pragma once
 #include <string>
 #include <atomic>
+#include <functional>
 #include <sys/epoll.h>
 
 #include "../utils/ServerConfig.h"
@@ -32,12 +33,12 @@ private:
     /**
      * @brief Socket designated for the HTTP server
      */
-    int HttpListenSocket;
+    std::vector<int> httpListenSockets_;
 
     /**
      * @brief Socket designated for the HTTPS server
      */
-    int HttpsListenSocket;
+    std::vector<int> httpsListenSockets_;
 
     /**
      * @brief Atomic boolean flag indicating whether the server is running or not
@@ -66,6 +67,17 @@ private:
     */
     void addToEpoll(int socket) const;
 
+    /**
+     * @brief Accepts a client socket and submits it to the thread pool.
+     *
+     * @param pool Reference to thread pool
+     * @param factory Reference to socket factory
+     * @param fd The listening socket fd that triggered the epoll event
+     * @param handler Function that takes the accepted socket fd and handles the connection
+     */
+    void acceptAndSubmit(ThreadPool &pool, SocketFactory &factory, int fd,
+                         std::function<void(int)> handler);
+
 public:
     WebServer(const std::string &path, SocketFactory &factory);
 
@@ -87,5 +99,7 @@ public:
      */
     void serveStatic(std::string &url, Connection &client);
 
-    void createClientThread(std::unique_ptr<Connection> client);
+    void createHttpClientThread(std::unique_ptr<Connection> client);
+
+    void createHttpsClientThread(std::unique_ptr<Connection> client);
 };

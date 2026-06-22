@@ -1,13 +1,9 @@
 #include "../utils/Logger.h"
+#include "../utils/ServerConfig.h"
 #include "ProxyConnection.h"
 #include <sys/socket.h>
-#include <sys/types.h>
-#include <netinet/in.h>
 #include <unistd.h>
-#include <sys/ioctl.h>
-#include <netdb.h>
 #include <cerrno>
-#include <cstring>
 
 #include "../utils/StaticResourceManager.h"
 #include "connections/Connection.h"
@@ -27,18 +23,27 @@ ProxyConnection::~ProxyConnection() {
 }
 
 void ProxyConnection::newConnection() {
-	size_t firstSpace = request.find(" ");
-	if (firstSpace == std::string::npos) return;
 
-	std::string type = request.substr(0, firstSpace);
-
+	if (request.find(' ') == std::string::npos) return;
+	const ServerConfig::ProxyRules* best = nullptr;
 	for (const auto& proxy : vhost.content) {
-		if (proxy.location == url) {
-			forwardRequest(proxy.host, proxy.port);
-			return;
+		std::string loc = proxy.location;
+		if (!loc.empty() && loc.back() == '/') {
+			loc.pop_back();
+		}
+		if (url.starts_with(loc)) {
+			if (best == nullptr || proxy.location.length() > best->location.length()) {
+				best = &proxy;
+			}
 		}
 	}
-	Logger::log("No matching configuration for URL: " + url, 1);
+	if (best) {
+		forwardRequest(best->host, best->port);
+	}
+	else {
+		Logger::log("No matching configuration for URL: " + url, 1);
+	}
+
 }
 
 void ProxyConnection::forwardRequest(const std::string& host, const std::string& port) {

@@ -81,7 +81,6 @@ inline int PosixSocketFactory::createListenSocket(const std::string& host, const
     if (listen(ListenSocket, SOMAXCONN) == -1) {
         throw std::runtime_error("Error: Failed to listen on socket: " + std::to_string(errno));
     }
-    unsigned long mode = 1;
     fcntl(ListenSocket, F_SETFL, O_NONBLOCK);
 
     return ListenSocket;

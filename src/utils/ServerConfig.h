@@ -35,6 +35,8 @@ public:
      */
     struct VirtualHost {
         std::vector<ProxyRules> content; ///< The host's rules.
+        std::vector<int> httpsPort;      ///< The host's stored https ports
+        std::vector<int> httpPort;       ///< The host's stored http ports
         std::string hostName;            ///< The host's name
         std::string passPath;            ///< Path to the password file
         std::string certPath;            ///< Path to the certificate file
@@ -46,8 +48,6 @@ public:
      */
     struct Config {
         std::vector<VirtualHost> content; ///< Vector containing all the different proxy rules
-        int httpsPortListen;              ///< Https port
-        int httpPortListen;               ///< Http port
         bool found;                       ///< Value signaling if the configuration file was found
     };
 
@@ -61,4 +61,6 @@ public:
 
 private:
     static VirtualHost parseVirtualHost(std::ifstream &file);
+
+    static void parseListenPorts(std::string& line, VirtualHost &host);
 };
