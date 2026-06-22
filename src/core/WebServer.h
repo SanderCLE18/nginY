@@ -14,6 +14,14 @@
 #include "../network/socket/SocketFactory.h"
 
 class WebServer {
+public:
+    /**
+     * @brief Holds the host and URL parsed from an incoming HTTP request.
+     */
+    struct ParsedRequest {
+        std::string host; ///< Value of the Host header
+        std::string url;  ///< Request URL extracted from the request line
+    };
 private:
     /**
      * @brief Server configuration
@@ -28,7 +36,7 @@ private:
     /**
      * @brief Epoll file descriptor
      */
-    int epollFd;
+    int epollFd = 0;
 
     /**
      * @brief Socket designated for the HTTP server
@@ -78,6 +86,23 @@ private:
     void acceptAndSubmit(ThreadPool &pool, SocketFactory &factory, int fd,
                          std::function<void(int)> handler);
 
+    /**
+     * @brief Parses the host and URL from a raw HTTP request string.
+     *
+     * @param request The raw HTTP request string received from the client
+     * @return ParsedRequest containing the Host header value and request URL
+     */
+    ParsedRequest parseRequest(const std::string& request);
+
+    /**
+     * @brief Finds the matching virtual host and forwards the request via ProxyConnection.
+     *
+     * @param parsedRequest The parsed host and URL from the request
+     * @param client The client connection to forward responses to
+     * @param request The full raw HTTP request string
+     */
+    void dispatchToVhost(const ParsedRequest &parsedRequest, std::unique_ptr<Connection> client, std::string &request);
+
 public:
     WebServer(const std::string &path, SocketFactory &factory);
 
@@ -99,7 +124,20 @@ public:
      */
     void serveStatic(std::string &url, Connection &client);
 
+    /**
+     * @brief Reads and handles an incoming HTTP connection.
+     * Redirects to HTTPS if the matched virtual host has HTTPS ports configured.
+     *
+     * @param client The accepted HTTP client connection
+     */
     void createHttpClientThread(std::unique_ptr<Connection> client);
 
+    /**
+     * @brief Reads and handles an incoming HTTPS connection.
+     *
+     * @param client The accepted HTTPS client connection
+     */
     void createHttpsClientThread(std::unique_ptr<Connection> client);
+
+
 };

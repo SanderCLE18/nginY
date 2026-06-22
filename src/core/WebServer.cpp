@@ -95,83 +95,76 @@ void WebServer::serveStatic(std::string &url, Connection &client) {
     }
 }
 
+WebServer::ParsedRequest WebServer::parseRequest(const std::string& request) {
+    ParsedRequest response;
+    size_t first = request.find(' ');
+    size_t second = request.find(' ', first + 1);
+
+    if (first != std::string::npos && second != std::string::npos) {
+        response.url = request.substr(first + 1, second - first - 1);
+        size_t hostPos = request.find("Host: ");
+        if (hostPos == std::string::npos) {
+            Logger::log("No Host header in request", 1);
+            return response;
+        }
+        size_t nextPos = request.find("\r\n", hostPos);
+        response.host = request.substr(hostPos + 6, nextPos - (hostPos + 6) );
+    }
+    return response;
+
+}
+
+void WebServer::dispatchToVhost(const ParsedRequest &parsedRequest, std::unique_ptr<Connection> client, std::string &request) {
+    for (const auto& it : serverConfig.content) {
+        if (it.hostName == parsedRequest.host) {
+            ProxyConnection connection(*client, request, parsedRequest.url, it);
+            return;
+        }
+    }
+}
+
 void WebServer::createHttpClientThread(std::unique_ptr<Connection> client) {
     char recvbuf[8192];
-    int clientResult = client->read(recvbuf, sizeof(recvbuf) - 1);
+    int clientResult = static_cast<int>(client->read(recvbuf, sizeof(recvbuf) - 1));
     if (clientResult > 0) {
-        printf("Bytes received: %d\n", clientResult);
-        //recvbuf[clientResult] = '\0';
         std::string request(recvbuf, clientResult);
+        ParsedRequest response = parseRequest(request);
 
-        size_t first = request.find(' ');
-        size_t second = request.find(' ', first + 1);
-
-        if (first != std::string::npos && second != std::string::npos) {
-            std::string url = request.substr(first + 1, second - first - 1);
-            size_t hostPos = request.find("Host: ");
-            if (hostPos == std::string::npos) {
-                Logger::log("No Host header in request", 1);
-                return;
-            }
-            size_t nextPos = request.find("\r\n", hostPos);
-            std::string host = request.substr(hostPos + 6, nextPos - (hostPos + 6) );
+        if (!response.host.empty()) {
             for (const auto& it : serverConfig.content) {
-                if (it.hostName == host && !it.httpsPort.empty()) {
-                    std::string response = "HTTP/1.1 301 Moved Permanently\r\nLocation: https://";
-                    response.append(host);
-                    response.append(url);
-                    response.append("\r\nContent-Length: 0\r\n\r\n");
-                    client->write(response.c_str(), response.size());
+                if (it.hostName == response.host && !it.httpsPort.empty()) {
+                    std::string newResponse = "HTTP/1.1 301 Moved Permanently\r\nLocation: https://";
+                    newResponse.append(response.host);
+                    newResponse.append(response.url);
+                    newResponse.append("\r\nContent-Length: 0\r\n\r\n");
+                    client->write(newResponse.c_str(), newResponse.size());
                     return;
                 }
-                if (it.hostName == host) {
-                    ProxyConnection connection(*client, request, url, it);
-                }
             }
+            dispatchToVhost(response, std::move(client), request);
         }
     } else {
         Logger::log("Error with recv:", errno);
     }
-    client->shutdown(SHUT_WR);
-    client->close();
 }
 
 void WebServer::createHttpsClientThread(std::unique_ptr<Connection> client) {
     char recvbuf[8192];
     int clientResult = client->read(recvbuf, sizeof(recvbuf) - 1);
     if (clientResult > 0) {
-        printf("Bytes received: %d\n", clientResult);
-        //recvbuf[clientResult] = '\0';
+
         std::string request(recvbuf, clientResult);
-
-        size_t first = request.find(' ');
-        size_t second = request.find(' ', first + 1);
-
-        if (first != std::string::npos && second != std::string::npos) {
-            std::string url = request.substr(first + 1, second - first - 1);
-            size_t hostPos = request.find("Host: ");
-            if (hostPos == std::string::npos) {
-                Logger::log("No Host header in request", 1);
-                return;
-            }
-            size_t nextPos = request.find("\r\n", hostPos);
-            std::string host = request.substr(hostPos + 6, nextPos - (hostPos + 6) );
-            for (const auto& it : serverConfig.content) {
-                if (it.hostName == host) {
-                    ProxyConnection connection(*client, request, url, it);
-                }
-            }
+        ParsedRequest response = parseRequest(request);
+        if (!response.host.empty()) {
+            dispatchToVhost(response, std::move(client), request);
         }
     } else {
         Logger::log("Error with recv:", errno);
     }
-    client->shutdown(SHUT_WR);
-    client->close();
 }
 
 void WebServer::startListen(SocketFactory &factory) {
-    //Logger::log("So based, I kneel...", 0);
-    //listenToClients
+
     isRunning = true;
     std::thread t(&WebServer::consoleInput, this);
 
