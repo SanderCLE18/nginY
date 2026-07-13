@@ -8,6 +8,6 @@ cmake ..
 make -j$(nproc)
 
 mkdir www
-mv '../nginy.config' nginy.config
+cp '../nginy.conf' nginy.conf
 
 echo "Build successful!"
