@@ -1,0 +1,42 @@
+# Example production config for the clemetsen.no stack:
+#   nginY (native, this host) -> {clemetsenSite, SindreSite, nginY-backend} (docker containers)
+#
+# Copy to nginy.conf next to the built binary and fill in real certificate paths.
+# ssl_password_file is only needed for passphrase-protected keys -- omit it
+# entirely for certbot-issued certs (FileReader::getPassword treats a missing
+# file as "no password" and SSLContext skips the passwd callback).
+
+server {
+    server_name clemetsen.no;
+    listen 80;
+    listen 443 ssl;
+
+    ssl_certificate     /etc/nginY/certs/clemetsen.no/fullchain.pem;
+    ssl_certificate_key /etc/nginY/certs/clemetsen.no/privkey.pem;
+
+    # GitHub webhook + upload API -> nginY-backend (Flask/gunicorn container)
+    location /github/webhook {
+        proxy_pass http://127.0.0.1:8000;
+    }
+    location /api {
+        proxy_pass http://127.0.0.1:8000;
+    }
+
+    # Everything else -> clemetsenSite (nginx container)
+    location / {
+        proxy_pass http://127.0.0.1:8081;
+    }
+}
+
+server {
+    server_name sindreclemetsen.no;
+    listen 80;
+    listen 443 ssl;
+
+    ssl_certificate     /etc/nginY/certs/sindreclemetsen.no/fullchain.pem;
+    ssl_certificate_key /etc/nginY/certs/sindreclemetsen.no/privkey.pem;
+
+    location / {
+        proxy_pass http://127.0.0.1:8082;
+    }
+}
