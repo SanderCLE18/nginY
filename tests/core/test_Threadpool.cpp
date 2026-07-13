@@ -2,7 +2,7 @@
 // Created by Sande on 20.03.2026.
 //
 #include <gtest/gtest.h>
-#include "core/Threadpool.h"
+#include "core/ThreadPool.h"
 
 
 TEST(ThreadPoolTest, SubmitReturnsCorrectFuture) {

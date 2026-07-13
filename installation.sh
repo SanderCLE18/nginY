@@ -5,7 +5,7 @@ mkdir build && cd build
 
 echo "Running CMake..."
 cmake ..
-make -j$(nproc)
+make nginY -j$(nproc)
 
 mkdir www
 cp '../nginy.conf' nginy.conf

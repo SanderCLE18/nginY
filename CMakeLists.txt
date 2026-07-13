@@ -86,7 +86,7 @@ add_executable(nginY_tests
         tests/network/connections/test_HttpConnection.cpp
         tests/network/connections/gTestConnection.cpp
         tests/network/connections/gTestConnectionParser.h
-        tests/network/socket/GTestSocketFactory.h
+        tests/network/socket/gTestSocketFactory.h
         tests/network/socket/test_PosixSocketFactory.cpp
         tests/core/test_WebServer.cpp
 )
