@@ -74,9 +74,7 @@ WebServer::~WebServer() {
 
 void WebServer::consoleInput() {
     std::string input;
-    while (input != "exit") {
-        std::getline(std::cin, input);
-    }
+    while (input != "exit" && std::getline(std::cin, input))  { }
     this->isRunning = false;
 }
 
