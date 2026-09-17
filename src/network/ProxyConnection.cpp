@@ -51,7 +51,7 @@ void ProxyConnection::forwardRequest(const std::string& host, const std::string&
 	//Ultrataktisk factory.
 	PosixSocketFactory posixSocketFactory;
 
-	int backendSocket = posixSocketFactory.createListenSocket(host, port);
+	int backendSocket = posixSocketFactory.connectSocket(host, port);
 
 	if (backendSocket == -1) return;
 

@@ -35,6 +35,15 @@ public:
     virtual int createClientSocket(int socket) = 0;
 
     /**
+     * @brief Virtual method for connecting an incoming connection to the backend.
+     *
+     * @param host The target host.
+     * @param port The port to redirect to.
+     * @return Upon completion shall return 0 if successfull or -1 if not.
+     */
+    virtual int connectSocket(const std::string& host, const std::string& port) = 0;
+
+    /**
      * @brief Destructor for SocketFactory.
      */
     virtual ~SocketFactory() = default;
