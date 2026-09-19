@@ -44,10 +44,19 @@ public:
      * @return file descriptor
      */
     int createClientSocket(int socket) override;
+
+    /**
+    * @brief Method for connecting an incoming connection to the backend.
+    *
+    * @param host The target host.
+    * @param port The port to redirect to.
+    * @return returns the filedescriptor of the new listen socket.
+    */
+    int connectSocket(const std::string& host, const std::string& port) override;
 };
 
 inline int PosixSocketFactory::createListenSocket(const std::string& host, const std::string& port) {
-    struct addrinfo hints, *res;
+    addrinfo hints, *res;
 
     memset(&hints, 0, sizeof(hints));
     hints.ai_family = AF_INET;
@@ -62,32 +71,67 @@ inline int PosixSocketFactory::createListenSocket(const std::string& host, const
         throw std::runtime_error("getaddrinfo failed: " + std::to_string(result));
     }
     //set socket
+    int theSocket = -1;
+    for (addrinfo* a = res; a != nullptr; a = a->ai_next) {
+        theSocket = socket(a->ai_family, a->ai_socktype, a->ai_protocol);
+        if (theSocket == -1) {
+            continue;
+        }
+        int opt = 1;
+        setsockopt(theSocket, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
 
-    int ListenSocket = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
-    if (ListenSocket == -1) {
-        freeaddrinfo(res);
-        throw std::runtime_error("Error: Failed to create listening socket: " + std::to_string(errno));
-    }
-    //bind
-    int opt = 1;
-    setsockopt(ListenSocket, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
-    int listenResult = bind(ListenSocket, res->ai_addr, static_cast<int>(res->ai_addrlen));
-    if (listenResult == -1)	{
-        freeaddrinfo(res);
-        throw std::runtime_error("Error: Failed to bind listening socket: " + std::to_string(errno));
+        if (bind(theSocket, res->ai_addr, static_cast<int>(res->ai_addrlen))) {
+            break;
+        }
+        close(theSocket);
+        theSocket = -1;
     }
     freeaddrinfo(res);
     //listen
-    if (listen(ListenSocket, SOMAXCONN) == -1) {
+    if (listen(theSocket, SOMAXCONN) == -1) {
         throw std::runtime_error("Error: Failed to listen on socket: " + std::to_string(errno));
     }
-    fcntl(ListenSocket, F_SETFL, O_NONBLOCK);
+    fcntl(theSocket, F_SETFL, O_NONBLOCK);
 
-    return ListenSocket;
+    return theSocket;
 }
+
+inline int PosixSocketFactory::connectSocket(const std::string& host, const std::string& port) {
+    addrinfo hints, *res;
+    memset(&hints, 0, sizeof(hints));
+
+    hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_protocol = IPPROTO_TCP;
+
+    const char* host_ptr = host.empty() ? nullptr : host.c_str();
+    int result = getaddrinfo(host_ptr, port.c_str(), &hints, &res);
+
+    if (result != 0) {
+        throw std::runtime_error("getaddrinfo failed: " + std::to_string(result));
+    }
+    //set socket
+    int fd = -1;
+    for (addrinfo* a = res; a != nullptr; a = a->ai_next) {
+        fd = socket(a->ai_family, a->ai_socktype, a->ai_protocol);
+        if (fd == -1) {
+            continue;
+        }
+        if (connect(fd, a->ai_addr, static_cast<int>(a->ai_addrlen)) == 0) {
+            break;
+        }
+        close(fd);
+        fd = -1;
+    }
+
+    freeaddrinfo(res);
+    return fd;
+}
+
 inline int PosixSocketFactory::createListenSocket(const std::string& port) {
     return createListenSocket("", port);
 }
+
 inline int PosixSocketFactory::createClientSocket(int socket) {
     //make client socket
     int Client;
