@@ -7,43 +7,9 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-# Source files
-set(SOURCES
-        src/core/main.cpp
-        src/core/WebServer.cpp
-        src/core/WebServer.h
-        src/utils/StaticResourceManager.h
-        src/utils/StaticResourceManager.cpp
-        src/network/ProxyConnection.cpp
-        src/network/ProxyConnection.h
-        src/core/ThreadPool.h
-        src/utils/ServerConfig.cpp
-        src/utils/ServerConfig.h
-        src/utils/LinkedBlockingQueue.h
-        src/utils/Logger.cpp
-        src/utils/Logger.h
-        src/network/connections/Connection.h
-        src/network/connections/HttpsConnection.h
-        src/network/connections/HttpConnection.h
-        src/network/SSLContext.cpp
-        src/network/SSLContext.h
-        src/utils/FileReader.cpp
-        src/utils/FileReader.h
-        src/network/socket/SocketFactory.h
-        src/network/socket/PosixSocketFactory.h
-        src/network/SNIContext.cpp
-        src/network/SNIContext.h
-)
-
-# Executable
-add_executable(nginY ${SOURCES})
-
-# OpenSSL
-find_package(OpenSSL REQUIRED)
-target_link_libraries(nginY PRIVATE OpenSSL::Crypto OpenSSL::SSL)
-
-#gTest
 include(FetchContent)
+
+# gTest
 FetchContent_Declare(
         googletest
         URL https://github.com/google/googletest/archive/52eb8108c5bdec04579160ae17225d66034bd723.zip
@@ -51,7 +17,8 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(googletest)
 
-add_library(nginY_lib
+# Library sources, shared by the nginY executable and the test binary
+set(LIB_SOURCES
         src/core/WebServer.cpp
         src/core/WebServer.h
         src/core/ThreadPool.h
@@ -59,6 +26,7 @@ add_library(nginY_lib
         src/utils/StaticResourceManager.h
         src/utils/ServerConfig.cpp
         src/utils/ServerConfig.h
+        src/utils/LinkedBlockingQueue.h
         src/utils/Logger.cpp
         src/utils/Logger.h
         src/utils/FileReader.cpp
@@ -70,15 +38,25 @@ add_library(nginY_lib
         src/network/ProxyConnection.h
         src/network/SSLContext.cpp
         src/network/SSLContext.h
+        src/network/SNIContext.cpp
+        src/network/SNIContext.h
         src/network/socket/SocketFactory.h
         src/network/socket/PosixSocketFactory.h
-
 )
 
+add_library(nginY_lib ${LIB_SOURCES})
+find_package(OpenSSL REQUIRED)
 target_link_libraries(nginY_lib PRIVATE
         OpenSSL::Crypto
         OpenSSL::SSL
 )
+
+
+
+
+# Executable
+add_executable(nginY src/core/main.cpp)
+target_link_libraries(nginY PRIVATE nginY_lib)
 
 enable_testing()
 add_executable(nginY_tests
@@ -104,17 +82,16 @@ include(GoogleTest)
 gtest_discover_tests(nginY_tests)
 
 # Linux / GCC / Clang warnings
-if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-
-    target_compile_options(nginY PRIVATE -stdlib=libc++)
-
-    target_link_options(nginY PRIVATE -stdlib=libc++)
-
-endif()
-if (CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-    target_compile_options(nginY PRIVATE
-            -Wall
-            -Wextra
-            -Wpedantic
-    )
-endif()
+foreach (tgt nginY nginY_lib)
+    if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+        target_compile_options(${tgt} PRIVATE -stdlib=libc++)
+        target_link_options(${tgt} PRIVATE -stdlib=libc++)
+    endif ()
+    if (CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+        target_compile_options(${tgt} PRIVATE
+                -Wall
+                -Wextra
+                -Wpedantic
+        )
+    endif ()
+endforeach ()
