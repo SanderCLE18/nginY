@@ -38,7 +38,7 @@ private:
          * @brief Constructor for Node class, sets the next node as a nullptr and takes in an item
          * @param item the item to be stored in the node
          */
-        Node(const E &item) : item(item), next(nullptr) {
+        Node(const E &item) : next(nullptr), item(item) {
         }
 
         /**

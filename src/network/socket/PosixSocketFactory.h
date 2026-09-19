@@ -3,7 +3,6 @@
 //
 
 #pragma once
-#include <cstring>
 #include <fcntl.h>
 #include <netdb.h>
 #include <stdexcept>
@@ -56,9 +55,8 @@ public:
 };
 
 inline int PosixSocketFactory::createListenSocket(const std::string& host, const std::string& port) {
-    addrinfo hints, *res;
+    addrinfo hints{}, *res;
 
-    memset(&hints, 0, sizeof(hints));
     hints.ai_family = AF_INET;
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_protocol = IPPROTO_TCP;
@@ -97,8 +95,7 @@ inline int PosixSocketFactory::createListenSocket(const std::string& host, const
 }
 
 inline int PosixSocketFactory::connectSocket(const std::string& host, const std::string& port) {
-    addrinfo hints, *res;
-    memset(&hints, 0, sizeof(hints));
+    addrinfo hints{}, *res;
 
     hints.ai_family = AF_INET;
     hints.ai_socktype = SOCK_STREAM;

@@ -51,7 +51,13 @@ void ProxyConnection::forwardRequest(const std::string& host, const std::string&
 	//Ultrataktisk factory.
 	PosixSocketFactory posixSocketFactory;
 
-	int backendSocket = posixSocketFactory.connectSocket(host, port);
+	int backendSocket = -1;
+	try {
+		backendSocket = posixSocketFactory.connectSocket(host, port);
+	}
+	catch (std::exception& e) {
+		Logger::log("Could not connect to backend", errno);
+	}
 
 	if (backendSocket == -1) return;
 
@@ -75,8 +81,8 @@ void ProxyConnection::forwardRequest(const std::string& host, const std::string&
 		if (recieved > 0) {
 			send(backendSocket, request.c_str() + headerPos + 4, recieved, MSG_NOSIGNAL);
 		}
-
-		size_t remaining = contentLength - recieved;
+		
+		size_t remaining = recieved < contentLength ? contentLength - recieved : 0;
 		constexpr size_t CHUNK = 64*1024;
 		std::vector<char> buf(CHUNK);
 
