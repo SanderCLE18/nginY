@@ -76,9 +76,4 @@ public:
         ioctl(fd, FIONBIO, &mode);
     }
 
-protected:
-    /**
-     * @brief File descriptor for the connection
-     */
-    int fd;
 };

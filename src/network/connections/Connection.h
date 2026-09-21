@@ -12,6 +12,13 @@
  */
 class Connection {
 
+protected:
+
+    /**
+     * @brief File descriptor for the connection
+     */
+    int fd = -1;
+
 public:
 
     /**
@@ -47,8 +54,13 @@ public:
     /**
      * @brief Virtual destructor to ensure proper cleanup of derived classes
      */
-    virtual ~Connection() = default;
-    
+    virtual ~Connection() {
+        if (fd != -1) {
+            ::close(fd);
+            fd = -1;
+        }
+    };
+
 };
 
 
