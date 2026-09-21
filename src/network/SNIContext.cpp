@@ -3,13 +3,18 @@
 //
 
 #include "SNIContext.h"
+#include "../utils/Logger.h"
 
 SNIContext::SNIContext(const ServerConfig::Config &config) {
     for (const auto &item : config.content) {
-        auto ctx = std::make_unique<SSLContext>(item);
-        SSL_CTX_set_tlsext_servername_callback(ctx->get(), sniCallback);
-        SSL_CTX_set_tlsext_servername_arg(ctx->get(), this);
-        contexts[item.hostName] = std::move(ctx);
+        try {
+            auto ctx = std::make_unique<SSLContext>(item);
+            SSL_CTX_set_tlsext_servername_callback(ctx->get(), sniCallback);
+            SSL_CTX_set_tlsext_servername_arg(ctx->get(), this);
+            contexts[item.hostName] = std::move(ctx);
+        } catch (std::exception &e) {
+            Logger::log("Failed to load SSL context for:" + item.hostName + ": " + std::string(e.what()), -1);
+        }
     }
 }
 
