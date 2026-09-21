@@ -38,7 +38,19 @@ void ProxyConnection::newConnection() {
 		}
 	}
 	if (best) {
-		forwardRequest(best->host, best->port);
+		if (best->proxy) {
+			forwardRequest(best->host, best->port);
+		}
+		else {
+			std::string file = StaticResourceManager::getUrlPath(url);
+			StaticResourceManager::Response response = StaticResourceManager::getSite(file);
+			client.write(response.header.c_str(), response.header.size());
+			if (response.found) {
+				client.write(response.content.data(), response.content.size());
+			}
+
+		}
+
 	}
 	else {
 		Logger::log("No matching configuration for URL: " + url, 1);
