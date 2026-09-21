@@ -59,7 +59,16 @@ public:
             throw std::runtime_error("TLS handshake failed");
         }
     }
-
+    /**
+     * @brief Destructor to ensure proper cleanup of derived classes, checks if the connection has a valid SSL struct, and closes + frees if it does.
+     */
+    ~HttpsConnection() override {
+        if (ssl) {
+            SSL_shutdown(ssl);
+            SSL_free(ssl);
+            ssl = nullptr;
+        }
+    }
     /**
      * @brief Tells the client to move to the active HTTPS page
      *
@@ -160,10 +169,4 @@ public:
         ioctl(fd, FIONBIO, &mode);
     }
 
-protected:
-
-    /**
-     * @brief File descriptor for the connection
-     */
-    int fd;
 };
