@@ -78,7 +78,7 @@ inline int PosixSocketFactory::createListenSocket(const std::string& host, const
         int opt = 1;
         setsockopt(theSocket, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
 
-        if (bind(theSocket, res->ai_addr, static_cast<int>(res->ai_addrlen))) {
+        if (bind(theSocket, res->ai_addr, static_cast<int>(res->ai_addrlen)) == 0) {
             break;
         }
         close(theSocket);
