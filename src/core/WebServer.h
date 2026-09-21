@@ -51,12 +51,16 @@ private:
     /**
      * @brief Atomic boolean flag indicating whether the server is running or not
      */
-    std::atomic<bool> isRunning;
+    std::atomic<bool> isRunning {true};
 
     /**
-    * @brief Console input for running "commands" ((just 'exit' is implemented (poorly)))  in the console while the server is running.
+     * @brief Reference to 'this' object, to be used with SIGTERM.
+     */
+    static inline WebServer* instance_ = nullptr;
+    /**
+    * @brief Method to handle SIGTERM signals from the OS. Replacement of the console input.
     */
-    void consoleInput();
+    static void handleSigterm(int);
 
     /**
      * @brief Delegates an incoming connection to a thread pool for handling
