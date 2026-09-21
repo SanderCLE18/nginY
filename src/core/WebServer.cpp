@@ -16,6 +16,7 @@
 #include <cstring>
 #include <iostream>
 #include <atomic>
+#include <csignal>
 #include <set>
 #include <thread>
 
@@ -29,6 +30,7 @@
 WebServer::WebServer(const std::string &pathConf, SocketFactory &factory) : serverConfig(
                                                                                 ServerConfig::parseConfig(pathConf)),
                                                                             sniContext_(serverConfig) {
+    instance_ = this;
     try {
         std::set<int> httpSockets;
         for (auto& vhost : serverConfig.content) {
@@ -70,12 +72,15 @@ WebServer::~WebServer() {
     for (int port : httpsListenSockets_) {
         close(port);
     }
+    if (epollFd >= 0) {
+        close(epollFd);
+    }
 }
 
-void WebServer::consoleInput() {
-    std::string input;
-    while (input != "exit" && std::getline(std::cin, input))  { }
-    this->isRunning = false;
+void WebServer::handleSigterm(int) {
+    if (instance_) {
+        instance_->isRunning.store(false, std::memory_order_relaxed);
+    }
 }
 
 void WebServer::serveStatic(std::string &url, Connection &client) {
@@ -163,8 +168,9 @@ void WebServer::createHttpsClientThread(std::unique_ptr<Connection> client) {
 
 void WebServer::startListen(SocketFactory &factory) {
 
-    isRunning = true;
-    std::thread t(&WebServer::consoleInput, this);
+
+    std::signal(SIGTERM, handleSigterm);
+    std::signal(SIGINT, handleSigterm);
 
     ThreadPool pool(8);
     epollFd = epoll_create1(0);
@@ -181,8 +187,7 @@ void WebServer::startListen(SocketFactory &factory) {
     std::vector<epoll_event> events(64);
     do {
         connectionHandle(pool, events, factory);
-    } while (isRunning.load());
-    t.join();
+    } while (isRunning.load(std::memory_order_relaxed));
 }
 
 void WebServer::addToEpoll(int socket) const {
