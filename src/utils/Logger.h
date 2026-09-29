@@ -55,7 +55,7 @@ private:
                 if (!item.has_value()) {
                     break;
                 }
-                outFile << item.value() << "\n";
+                outFile << item.value() << "\n" << std::flush;
             }
             outFile.close();
         });
