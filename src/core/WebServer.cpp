@@ -103,6 +103,7 @@ WebServer::ParsedRequest WebServer::parseRequest(const std::string& request) {
     size_t first = request.find(' ');
     size_t second = request.find(' ', first + 1);
 
+
     if (first != std::string::npos && second != std::string::npos) {
         response.url = request.substr(first + 1, second - first - 1);
         size_t hostPos = request.find("Host: ");
@@ -112,6 +113,10 @@ WebServer::ParsedRequest WebServer::parseRequest(const std::string& request) {
         }
         size_t nextPos = request.find("\r\n", hostPos);
         response.host = request.substr(hostPos + 6, nextPos - (hostPos + 6) );
+        size_t colonPos = response.host.find(':');
+        if (colonPos != std::string::npos) {
+            response.host = response.host.substr(0, colonPos);
+        }
     }
     return response;
 
@@ -136,10 +141,14 @@ void WebServer::createHttpClientThread(std::unique_ptr<Connection> client) {
         if (!response.host.empty()) {
             for (const auto& it : serverConfig.content) {
                 if (it.hostName == response.host && !it.httpsPort.empty()) {
+                    int port = it.httpsPort.front();
                     std::string newResponse = "HTTP/1.1 301 Moved Permanently\r\nLocation: https://";
                     newResponse.append(response.host);
+                    if (port != 443) {
+                        newResponse.append(":").append(std::to_string(port));
+                    }
                     newResponse.append(response.url);
-                    newResponse.append("\r\nContent-Length: 0\r\n\r\n");
+                    newResponse.append("\r\nContent-Length: 0\r\nConnection: close\r\nCache-Control: no-store\r\n\r\n");
                     client->write(newResponse.c_str(), newResponse.size());
                     return;
                 }

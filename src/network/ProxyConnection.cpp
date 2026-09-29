@@ -4,11 +4,26 @@
 #include <sys/socket.h>
 #include <unistd.h>
 #include <cerrno>
+#include <sstream>
+#include <algorithm>
 
 #include "../utils/StaticResourceManager.h"
 #include "connections/Connection.h"
 #include "socket/PosixSocketFactory.h"
 
+static const std::string gatewayTimeout =
+			"HTTP/1.1 504 Gateway Timeout\r\n"
+			"Content-Type: text/plain\r\n"
+			"Content-Length: 16\r\n"
+			"Connection: close\r\n\r\n"
+			"Gateway Timeout\n";
+
+static const std::string badGateway =
+			"HTTP/1.1 502 Bad Gateway\r\n"
+			"Content-Type: text/plain\r\n"
+			"Content-Length: 12\r\n"
+			"Connection: close\r\n\r\n"
+			"Bad Gateway\n";
 
 ProxyConnection::ProxyConnection(Connection& client, std::string request, std::string url, const ServerConfig::VirtualHost& vhost) : client(client) {
 	this->request = std::move(request);
@@ -70,8 +85,12 @@ void ProxyConnection::forwardRequest(const std::string& host, const std::string&
 	catch (std::exception& e) {
 		Logger::log("Could not connect to backend", errno);
 	}
+	if (backendSocket == -1) {
+		Logger::log("Could not connect to backend:" + host +":"+port + "errno:", errno);
 
-	if (backendSocket == -1) return;
+		client.write(badGateway.c_str(), badGateway.size());
+		return;
+	}
 
 	size_t headerPos = request.find("\r\n\r\n");
 
@@ -81,20 +100,37 @@ void ProxyConnection::forwardRequest(const std::string& host, const std::string&
 		return;
 	}
 
+	timeval tv{.tv_sec=30, .tv_usec=0};
+	setsockopt(backendSocket, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
 	//Split
 	std::string header = request.substr(0, headerPos + 4);
-	size_t contentLength = StaticResourceManager::getContentLength(header);
+	long long contentLength = StaticResourceManager::getContentLength(header);
 
+	std::string forward;
+	std::istringstream in(header.substr(0, headerPos));
+	std::string line;
+	while (std::getline(in, line)) {
+		if (!line.empty() && line.back() == '\r') {
+			line.pop_back();
+		}
+		std::string low = line;
+		std::ranges::transform(low, low.begin(), ::tolower);
 
-	send(backendSocket, header.c_str(), header.length(), MSG_NOSIGNAL);
+		if (low.starts_with("connection:") || low.starts_with("keep-alive:")) {
+			continue;
+		}
+		forward += line + "\r\n";
+	}
+	forward += "Connection: close\r\n\r\n";
+	send(backendSocket, forward.c_str(), forward.length(), MSG_NOSIGNAL);
 
 	if (contentLength > 0 ) {
-		size_t recieved = request.length() - (headerPos + 4);
-		if (recieved > 0) {
-			send(backendSocket, request.c_str() + headerPos + 4, recieved, MSG_NOSIGNAL);
+		size_t received = request.length() - (headerPos + 4);
+		if (received > 0) {
+			send(backendSocket, request.c_str() + headerPos + 4, received, MSG_NOSIGNAL);
 		}
 		
-		size_t remaining = recieved < contentLength ? contentLength - recieved : 0;
+		size_t remaining = received < static_cast<size_t>(contentLength) ? static_cast<size_t>(contentLength) - received : 0;
 		constexpr size_t CHUNK = 64*1024;
 		std::vector<char> buf(CHUNK);
 
@@ -110,9 +146,20 @@ void ProxyConnection::forwardRequest(const std::string& host, const std::string&
 
 
 	char buffer[4096];
-	size_t bytes;
+	ssize_t bytes;
+	ssize_t sent = 0;
 	while ((bytes = recv(backendSocket, buffer, sizeof(buffer), 0)) > 0) {
 		client.write(buffer, bytes);
+		sent += bytes;
+	}
+	int error = errno;
+	if (bytes == -1) {
+		bool timeout = error == EAGAIN || error == EWOULDBLOCK;
+		if (sent == 0) {
+			const std::string& reps = timeout ? gatewayTimeout : badGateway;
+			client.write(reps.c_str(), reps.length());
+		}
+		Logger::log(timeout ? "Backend timed out, errno: " : "Backend recv failed, errno:", error);
 	}
 
 	close(backendSocket);

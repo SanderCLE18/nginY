@@ -18,7 +18,7 @@ StaticResourceManager::Response StaticResourceManager::getSite(const std::string
 
     if (!file.is_open()) {
         response.found = false;
-        response.header = "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n";
+        response.header = "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n";
         return response;
     }
 
@@ -33,7 +33,7 @@ StaticResourceManager::Response StaticResourceManager::getSite(const std::string
     response.header = "HTTP/1.1 200 OK\r\n";
     response.header += "Content-Type: " + filetype + "\r\n";
     response.header += "Content-Length: " + std::to_string(size) + "\r\n";
-    response.header += "Connection: active\r\n\r\n";
+    response.header += "Connection: close\r\n\r\n";
 
     file.close();
     return response;
@@ -76,7 +76,7 @@ long long StaticResourceManager::getContentLength(const std::string& header) {
         std::string lower = line;
         std::transform(lower.begin(), lower.end(), lower.begin(), ::tolower);
 
-        if (line.starts_with("content-length:")) {
+        if (lower.starts_with("content-length:")) {
             size_t after = line.find(":");
             std::string lengthString = line.substr(after + 1);
             lengthString.erase(std::remove_if(lengthString.begin(), lengthString.end(), ::isspace), lengthString.end());

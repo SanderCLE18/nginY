@@ -9,6 +9,9 @@ SNIContext::SNIContext(const ServerConfig::Config &config) {
     for (const auto &item : config.content) {
         try {
             auto ctx = std::make_unique<SSLContext>(item);
+            if (ctx->get() == nullptr) {
+                continue;
+            }
             SSL_CTX_set_tlsext_servername_callback(ctx->get(), sniCallback);
             SSL_CTX_set_tlsext_servername_arg(ctx->get(), this);
             contexts[item.hostName] = std::move(ctx);
