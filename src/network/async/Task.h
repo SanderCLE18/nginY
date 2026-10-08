@@ -3,42 +3,63 @@
 #include <exception>
 #include <utility>
 
-namespace detail {
-    // Shared continuation/exception state for both the value and void promises.
-    class PromiseBase {
-    public:
-        std::coroutine_handle<> continuation = nullptr;
-        std::exception_ptr exception = nullptr;
+#include "../../utils/Logger.h"
 
-        std::suspend_always initial_suspend() noexcept { return {}; }
+    /**
+     * Shared base for both promise types so the continuation/exception isn't duplicated
+     */
+class PromiseBase {
+public:
 
-        void unhandled_exception() noexcept { exception = std::current_exception(); }
-    };
+    std::coroutine_handle<> continuation = nullptr;
+    std::exception_ptr exception = nullptr;
 
-    // final_suspend's awaiter: symmetric transfer into whoever is awaiting us,
-    // instead of resuming them from inside our own stack frame.
-    struct FinalAwaiter {
-        bool await_ready() const noexcept { return false; }
+    /**
+     * Method for  making the Task "lazy".
+     * The coroutine body is created but doesn't run until something explicitly resumes it.
+     *
+     * @return returns awaiter
+     */
+    static std::suspend_always initial_suspend() noexcept { return {}; }
 
-        template<typename Promise>
-        std::coroutine_handle<> await_suspend(std::coroutine_handle<Promise> handle) noexcept {
-            auto continuation = handle.promise().continuation;
-            return continuation ? continuation : std::noop_coroutine();
-        }
+    /**
+     * Called by compiler when an exception escapes the coroutine body. Captures and rethrows later.
+     */
+    void unhandled_exception() noexcept { exception = std::current_exception(); }
+};
 
-        void await_resume() const noexcept {}
-    };
-}
+
+/**
+ * The awaiter returned from final_suspend(). Symmetric transfer mechanism
+ */
+struct FinalAwaiter {
+    /**
+     * Tells the program not to finish the coroutine until the result/exception has been read.
+     *
+     * @return false
+     */
+    static bool await_ready() noexcept { return false; }
+
+    
+    template<typename P>
+    std::coroutine_handle<> await_suspend(std::coroutine_handle<P> handle) noexcept {
+        auto continuation = handle.promise().continuation;
+        return continuation ? continuation : std::noop_coroutine();
+    }
+
+    void await_resume() const noexcept {}
+};
+
 
 template<typename T = void>
 class Task {
 public:
-    class promise_type : public detail::PromiseBase {
+    class promise_type : public PromiseBase {
     public:
         std::optional<T> value;
 
         Task get_return_object() { return Task(std::coroutine_handle<promise_type>::from_promise(*this)); }
-        detail::FinalAwaiter final_suspend() noexcept { return {}; }
+        FinalAwaiter final_suspend() noexcept { return {}; }
 
         template<typename U>
         void return_value(U &&v) { value = std::forward<U>(v); }
@@ -78,14 +99,13 @@ private:
     std::coroutine_handle<promise_type> handle;
 };
 
-// void specialization -- same shape, no stored value.
 template<>
 class Task<void> {
 public:
-    class promise_type : public detail::PromiseBase {
+    class promise_type : public PromiseBase {
     public:
         Task get_return_object() { return Task(std::coroutine_handle<promise_type>::from_promise(*this)); }
-        detail::FinalAwaiter final_suspend() noexcept { return {}; }
+        static FinalAwaiter final_suspend() noexcept { return {}; }
 
         void return_void() noexcept {}
     };
@@ -106,7 +126,7 @@ public:
 
     ~Task() { if (handle) handle.destroy(); }
 
-    [[nodiscard]] bool await_ready() const noexcept { return false; }
+     [[nodiscard]] static bool await_ready() noexcept { return false; }
 
     std::coroutine_handle<> await_suspend(std::coroutine_handle<> awaiting) noexcept {
         handle.promise().continuation = awaiting;
@@ -121,17 +141,25 @@ private:
     std::coroutine_handle<promise_type> handle;
 };
 
-// Fire-and-forget variant for per-connection coroutines: starts eagerly, no
-// handle kept by the caller, cleans itself up on its own final_suspend.
+
 class DetachedTask {
 public:
     struct promise_type {
-        std::suspend_never initial_suspend() noexcept { return {}; }
-        std::suspend_never final_suspend() noexcept { return {}; }
+        static std::suspend_never initial_suspend() noexcept { return {}; }
+        static std::suspend_never final_suspend() noexcept { return {}; }
         void return_void() noexcept {}
 
-        // TODO: decide real policy -- terminate, or log + close the connection?
-        static void unhandled_exception() { std::terminate(); }
+
+        static void unhandled_exception() {
+            try {
+                std::rethrow_exception(std::current_exception());
+            } catch (const std::exception &e) {
+                Logger::log("Unhandled exception in connection coroutine" + std::string(e.what()) + ":" , errno);
+            } catch (...) {
+                Logger::log("Unhandled unknown exception in connection coroutine! Error: ", -1);
+            }
+
+        }
 
         DetachedTask get_return_object() noexcept { return {}; }
     };
