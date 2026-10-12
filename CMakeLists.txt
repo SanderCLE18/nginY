@@ -42,6 +42,7 @@ set(LIB_SOURCES
         src/network/SNIContext.h
         src/network/socket/SocketFactory.h
         src/network/socket/PosixSocketFactory.h
+        src/network/async/Task.h
 )
 
 add_library(nginY_lib ${LIB_SOURCES})
