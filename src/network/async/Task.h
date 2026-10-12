@@ -17,7 +17,7 @@ public:
     std::exception_ptr exception = nullptr;
 
     /**
-     * Method for  making the Task "lazy".
+     * Method for making the Task "lazy".
      * The coroutine body is created but doesn't run until something explicitly resumes it.
      *
      * @return returns awaiter
@@ -32,7 +32,6 @@ public:
     }
 };
 
-
 /**
  * The awaiter returned from final_suspend(). Symmetric transfer mechanism
  */
@@ -45,7 +44,7 @@ struct FinalAwaiter {
     static bool await_ready() noexcept { return false; }
 
     /**
-     * Passes on the control directly to the next coroutine 
+     * Passes on the control directly to the next coroutine
      *
      * @tparam P Promise type
      * @param handle the handle of the finishing coroutine.
@@ -84,10 +83,11 @@ public:
     TaskBase(TaskBase &&other) noexcept : handle(std::exchange(other.handle, nullptr)) {}
 
     /**
-     * Copy constructor. Deletes the copy as a coroutine frame can not have dual ownership.
+     * Move assignment operator.
+     * Overwrites the current handle if present and trades ownership of the object
      *
      * @param other the task
-     * @return returns a pointer to the item
+     * @return returns a reference to the item
      */
     TaskBase &operator=(TaskBase &&other) noexcept {
         if (this != &other) {
@@ -99,28 +99,58 @@ public:
         return *this;
     }
 
+    /**
+     * Copy constructor, deletes copy as coroutine frame cant have 2 owners.
+     */
     TaskBase(const TaskBase &) = delete;
 
+    /**
+     * Same as the constructor, deletes copy as coroutine frame can't have 2 owners.
+     */
     TaskBase &operator=(const TaskBase &) = delete;
 
+    /**
+     * Destructor, deletes coroutine frame if present/owned.
+     */
     ~TaskBase() {
         if (handle) {
             handle.destroy();
         }
     }
 
+    /**
+     * Always false, a task is never 'already finished'
+     * from the perspective of another task waiting for it to finish
+     *
+     * @return false
+     */
     [[nodiscard]] static bool await_ready() noexcept {
         return false;
     }
 
+    /**
+     * Called when another routine does co_await.
+     * Stores the awaiting coroutine's handle as continuation.
+     *
+     * @param awaiting the awaiting coroutine's handle.
+     * @return handle for triggering a systemic transfer for an awaiting coroutine.
+     */
     std::coroutine_handle<> await_suspend(std::coroutine_handle<> awaiting) noexcept {
         handle.promise().continuation = awaiting;
         return handle;
     }
 
 protected:
+    /**
+     * Constructor, makes task take ownership of coroutine handle
+     *
+     * @param h coroutine handle.
+     */
     explicit TaskBase(std::coroutine_handle<P> h) noexcept : handle(h) {}
 
+    /**
+     * Handle to the coroutine.
+     */
     std::coroutine_handle<P> handle;
 };
 
@@ -135,8 +165,18 @@ class Task : public TaskBase<Promise<T>> {
 public:
     using promise_type = Promise<T>;
 
+    /**
+     * Same as super-class, takes control of raw coroutine handle.
+     *
+     * @param h the handle.
+     */
     explicit Task(std::coroutine_handle<promise_type> h) noexcept : TaskBase<promise_type>(h) {}
 
+    /**
+     * Called after the awaited task has reached final_suspension. Rethrows exception if one has occurred.
+     *
+     * @return Returns the handles value moved out of routine, if the promise type is non-void.
+     */
     T await_resume() {
         auto &promise = this->handle.promise();
         if (promise.exception) {
@@ -148,36 +188,74 @@ public:
     }
 };
 
+/**
+ * Promise class of a given/parameterized type.
+ *
+ * @tparam T the type.
+ */
 template <typename T>
 class Promise : public PromiseBase {
 public:
     std::optional<T> value;
 
+    /**
+     * Produces the task object for the caller.
+     *
+     * @return a task object
+     */
     Task<T> get_return_object() noexcept {
         return Task<T>(std::coroutine_handle<Promise>::from_promise(*this) );
     }
 
+    /**
+     * Returns FinalAwaiter such that the derived promise can participate in symmetric transfer.
+     *
+     * @return returns a FinalAwaiter
+     */
     FinalAwaiter final_suspend() noexcept {
         return {};
     }
+
+    /**
+     * Called when coroutine body does co_return, forwards value into the optional
+     * such that the value survives after the routine is finished.
+     *
+     * @tparam U the return type deduced from whatever is passed in the co_return..
+     * @param v forwarding reference .
+     */
     template<typename U>
     void return_value(U &&v) {
         value = std::forward<U>(v);
     }
 };
 
+/**
+ * Promise class of type void, does not store a value of the tasks
+ */
 template<>
 class Promise<void> : public PromiseBase {
 public:
-
+    /**
+     * Produces the task object for the caller.
+     *
+     * @return a task object
+     */
     Task<void> get_return_object() noexcept {
         return Task<void>(std::coroutine_handle<Promise>::from_promise(*this) );
     }
 
+    /**
+     * Returns FinalAwaiter such that the derived promise can participate in symmetric transfer.
+     *
+     * @return returns a FinalAwaiter
+     */
     FinalAwaiter final_suspend() noexcept {
         return {};
     }
 
+    /**
+     * Called for co_return.
+     */
     void return_void() noexcept {}
 };
 
@@ -221,7 +299,7 @@ public:
         }
 
         /**
-         * Returns an empty DetachedTasked as there is no handle to hold onto
+         * Returns an empty DetachedTask as there is no handle to hold onto
          *
          * @return returns an empty task
          */
