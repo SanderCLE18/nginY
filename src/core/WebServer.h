@@ -7,6 +7,7 @@
 #include <functional>
 #include <sys/epoll.h>
 
+#include "../network/eventloop/EventLoop.hpp"
 #include "../utils/ServerConfig.h"
 #include "../network/connections/Connection.h"
 #include "ThreadPool.h"
@@ -14,6 +15,8 @@
 #include "../network/socket/SocketFactory.h"
 
 class WebServer {
+
+
 public:
     /**
      * @brief Holds the host and URL parsed from an incoming HTTP request.
@@ -29,14 +32,15 @@ private:
     ServerConfig::Config serverConfig;
 
     /**
+     * @brief Event loop object.
+     */
+    EventLoop eventLoop;
+
+    /**
      * @brief Saved SSL context
      */
     SNIContext sniContext_;
 
-    /**
-     * @brief Epoll file descriptor
-     */
-    int epollFd = 0;
 
     /**
      * @brief Socket designated for the HTTP server

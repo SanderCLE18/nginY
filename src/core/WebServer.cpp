@@ -72,9 +72,6 @@ WebServer::~WebServer() {
     for (int port : httpsListenSockets_) {
         close(port);
     }
-    if (epollFd >= 0) {
-        close(epollFd);
-    }
 }
 
 void WebServer::handleSigterm(int) {
@@ -182,7 +179,6 @@ void WebServer::startListen(SocketFactory &factory) {
     std::signal(SIGINT, handleSigterm);
 
     ThreadPool pool(8);
-    epollFd = epoll_create1(0);
 
     for (auto& it : httpListenSockets_) {
         addToEpoll(it);
@@ -194,15 +190,40 @@ void WebServer::startListen(SocketFactory &factory) {
     }
 
     std::vector<epoll_event> events(64);
-    do {
-        connectionHandle(pool, events, factory);
-    } while (isRunning.load(std::memory_order_relaxed));
+
+    constexpr int FD_MAX = 2;
+    constexpr int TIMEOUT = 10;
+
+    auto epollEvents = std::make_unique<struct epoll_event[]>(FD_MAX);
+
+    while (isRunning.load(std::memory_order_relaxed)) {
+
+
+        if (readyFd < 0) {
+            Logger::log("Error with epoll_wait: ", errno);
+            exit(-1);
+        }
+        for (int i = 0; i < readyFd; ++i) {
+            if (epollEvents[i].events & EPOLLERR) {
+                Logger::log("Error with epoll_event: ", SO_ERROR);
+                continue;
+            }
+
+            if (epollEvents[i].events & EPOLLIN) {
+
+            }
+
+            if (epollEvents[i].events & EPOLLOUT) {
+
+            }
+        }
+    }
 }
 
 void WebServer::addToEpoll(int socket) const {
     epoll_event event{};
-    event.events = EPOLLIN;
-    event.data.fd = socket;
+    event.events = EPOLLIN | EPOLLRDHUP | EPOLLET | EPOLLHUP;
+    event.data.ptr = &socket;
     if (epoll_ctl(epollFd, EPOLL_CTL_ADD, socket, &event) == -1) {
         Logger::log("Error adding socket to epoll:", errno);
     }

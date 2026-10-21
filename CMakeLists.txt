@@ -43,6 +43,9 @@ set(LIB_SOURCES
         src/network/socket/SocketFactory.h
         src/network/socket/PosixSocketFactory.h
         src/network/async/Task.h
+        src/network/eventloop/EventLoop.cpp
+        src/network/eventloop/EventLoop.hpp
+        src/network/eventloop/IoHandle.h
 )
 
 add_library(nginY_lib ${LIB_SOURCES})
